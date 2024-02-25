@@ -1,5 +1,6 @@
 use crate::map::Map;
 use crate::vertexes::Vertex;
+
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
@@ -31,11 +32,7 @@ impl Game {
             .build()
             .unwrap();
 
-        let mut canvas = window.into_canvas().build().unwrap();
-
-        canvas.set_draw_color(Color::RGB(0, 0, 0));
-        canvas.clear();
-        canvas.present();
+        let canvas = window.into_canvas().build().unwrap();
 
         Game {
             sdl_context: sdl_context,
@@ -59,7 +56,8 @@ impl Game {
         Point::new(x.into(), y.into())
     }
 
-    fn draw_map(&mut self) {
+    #[allow(dead_code)]
+    fn draw_map_linedefs(&mut self) {
         self.canvas.set_draw_color(Color::RGB(255, 255, 255));
 
         for linedef in &self.map.linedefs {
@@ -75,7 +73,10 @@ impl Game {
     pub fn main_loop(&mut self) {
         let mut event_pump = self.sdl_context.event_pump().unwrap();
         'running: loop {
-            self.draw_map();
+            self.canvas.set_draw_color(Color::RGB(0, 0, 0));
+            self.canvas.clear();
+            self.draw_map_linedefs();
+            self.canvas.present();
 
             for event in event_pump.poll_iter() {
                 match event {
@@ -88,7 +89,6 @@ impl Game {
                 }
             }
 
-            self.canvas.present();
             ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
         }
     }

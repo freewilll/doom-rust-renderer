@@ -155,4 +155,8 @@ impl WadFile<'_> {
             map_name
         );
     }
+
+    pub fn read_i16(&self, offset: usize) -> i16 {
+        i16::from_le_bytes(self.file[offset..offset + 2].try_into().unwrap())
+    }
 }

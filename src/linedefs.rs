@@ -14,16 +14,14 @@ pub struct Linedef {
 
 pub fn load_linedefs(wad_file: &WadFile, map_name: &str) -> Vec<Linedef> {
     let dir_entry = wad_file.get_dir_entry_for_map_lump(map_name, MapLumpName::Linedefs);
-    let count = dir_entry.size as usize / 14; // A vertex is 14 bytes long
+    let count = dir_entry.size as usize / 14; // A linedef is 14 bytes long
 
     let mut results = Vec::new();
     for i in 0..count {
         let offset = dir_entry.offset as usize + i * 14;
         let linedef = Linedef {
-            start_vertex: i16::from_le_bytes(wad_file.file[offset..offset + 2].try_into().unwrap()),
-            end_vertex: i16::from_le_bytes(
-                wad_file.file[offset + 2..offset + 4].try_into().unwrap(),
-            ),
+            start_vertex: wad_file.read_i16(offset),
+            end_vertex: wad_file.read_i16(offset + 2),
             flags: 0,
             special_type: 0,
             sector_tag: 0,

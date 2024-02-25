@@ -15,8 +15,8 @@ pub fn load_vertexes(wad_file: &WadFile, map_name: &str) -> Vec<Vertex> {
     for i in 0..count {
         let offset = dir_entry.offset as usize + i * 4;
         let vertex = Vertex {
-            x: i16::from_le_bytes(wad_file.file[offset..offset + 2].try_into().unwrap()),
-            y: i16::from_le_bytes(wad_file.file[offset + 2..offset + 4].try_into().unwrap()),
+            x: wad_file.read_i16(offset),
+            y: wad_file.read_i16(offset + 2),
         };
         results.push(vertex);
     }

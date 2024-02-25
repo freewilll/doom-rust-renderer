@@ -1,6 +1,8 @@
 mod game;
 mod linedefs;
 mod map;
+mod segs;
+mod subsectors;
 mod vertexes;
 mod wad;
 
