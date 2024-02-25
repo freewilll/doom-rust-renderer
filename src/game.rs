@@ -70,12 +70,35 @@ impl Game {
         }
     }
 
+    #[allow(dead_code)]
+    pub fn draw_map_nodes(&mut self) {
+        self.canvas.set_draw_color(Color::RGB(255, 255, 0));
+
+        for node in &self.map.nodes {
+            let x = node.x;
+            let y = node.y;
+            let dx = node.dx;
+            let dy = node.dy;
+
+            let start_vertex = Vertex { x: x, y: y };
+            let end_vertex = Vertex {
+                x: x + dx,
+                y: y + dy,
+            };
+            let start_point = self.transform_vertex_to_point_for_map(&start_vertex);
+            let end_point = self.transform_vertex_to_point_for_map(&end_vertex);
+
+            self.canvas.draw_line(start_point, end_point).unwrap();
+        }
+    }
+
     pub fn main_loop(&mut self) {
         let mut event_pump = self.sdl_context.event_pump().unwrap();
         'running: loop {
             self.canvas.set_draw_color(Color::RGB(0, 0, 0));
             self.canvas.clear();
             self.draw_map_linedefs();
+            self.draw_map_nodes();
             self.canvas.present();
 
             for event in event_pump.poll_iter() {

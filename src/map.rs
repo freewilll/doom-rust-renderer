@@ -1,4 +1,5 @@
 use crate::linedefs::{load_linedefs, Linedef};
+use crate::nodes::{load_nodes, Node};
 use crate::segs::{load_segs, Seg};
 use crate::subsectors::{load_subsectors, SubSector};
 use crate::vertexes::{load_vertexes, Vertex};
@@ -10,6 +11,7 @@ pub struct Map {
     pub linedefs: Vec<Linedef>,     // Lines
     pub segs: Vec<Seg>,             // Lines, split by the BSP builder
     pub subsectors: Vec<SubSector>, // Sectors, split by the BSP builder
+    pub nodes: Vec<Node>,           // BSP tree
     pub top_left: Vertex,           // Top left vertex of the map
     pub bottom_right: Vertex,       // Bottom right vertex of the map
 }
@@ -26,6 +28,7 @@ impl Map {
         let linedefs = load_linedefs(wad_file, map_name);
         let segs = load_segs(wad_file, map_name);
         let subsectors = load_subsectors(wad_file, map_name);
+        let nodes = load_nodes(wad_file, map_name);
 
         for linedef in &linedefs {
             let start_vertex = &vertexes[linedef.start_vertex as usize];
@@ -47,6 +50,7 @@ impl Map {
             linedefs: linedefs,
             segs: segs,
             subsectors: subsectors,
+            nodes: nodes,
             top_left: Vertex { x: min_x, y: min_y },
             bottom_right: Vertex { x: max_x, y: max_y },
         }
