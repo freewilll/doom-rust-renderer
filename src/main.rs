@@ -1,10 +1,12 @@
+mod game;
 mod linedefs;
 mod map;
 mod vertexes;
 mod wad;
 
-use crate::map::Map;
-use crate::wad::WadFile;
+use game::Game;
+use map::Map;
+use wad::WadFile;
 
 use std::{fs::metadata, fs::File, io::Read};
 
@@ -19,7 +21,12 @@ fn read_file(filename: &str) -> Vec<u8> {
 }
 
 pub fn main() {
+    let map_name = std::env::args().nth(1).unwrap_or("e1m1".to_string());
+
     let file_data = read_file("doom1.wad");
     let wad_file = WadFile::new(&file_data);
-    Map::new(&wad_file, "e1m1");
+    let map = Map::new(&wad_file, map_name.as_str());
+
+    let mut game = Game::new(map);
+    game.main_loop();
 }

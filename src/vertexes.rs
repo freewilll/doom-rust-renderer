@@ -3,8 +3,8 @@ use crate::wad::{MapLumpName, WadFile};
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct Vertex {
-    x: i16,
-    y: i16,
+    pub x: i16,
+    pub y: i16,
 }
 
 pub fn load_vertexes(wad_file: &WadFile, map_name: &str) -> Vec<Vertex> {

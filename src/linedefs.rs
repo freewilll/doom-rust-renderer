@@ -3,13 +3,13 @@ use crate::wad::{MapLumpName, WadFile};
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct Linedef {
-    start_vertex: i16,
-    end_vertex: i16,
-    flags: i16,
-    special_type: i16,
-    sector_tag: i16,
-    front_sidedef: i16,
-    back_sidedef: i16,
+    pub start_vertex: i16,
+    pub end_vertex: i16,
+    pub flags: i16,
+    pub special_type: i16,
+    pub sector_tag: i16,
+    pub front_sidedef: i16,
+    pub back_sidedef: i16,
 }
 
 pub fn load_linedefs(wad_file: &WadFile, map_name: &str) -> Vec<Linedef> {
