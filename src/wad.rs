@@ -159,4 +159,8 @@ impl WadFile<'_> {
     pub fn read_i16(&self, offset: usize) -> i16 {
         i16::from_le_bytes(self.file[offset..offset + 2].try_into().unwrap())
     }
+
+    pub fn read_f32_from_i16(&self, offset: usize) -> f32 {
+        i16::from_le_bytes(self.file[offset..offset + 2].try_into().unwrap()) as f32
+    }
 }

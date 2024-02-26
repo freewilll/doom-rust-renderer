@@ -119,12 +119,12 @@ impl Game {
         let arrow_length = SCREEN_WIDTH as f32 / 32.0;
 
         let start_vertex = &self.player.position;
-        let start_delta = Vertex::new(length as i16, length as i16).rotate(self.player.angle);
+        let start_delta = Vertex::new(length, length).rotate(self.player.angle);
         let end_vertex = start_vertex + &start_delta;
         let start_point = self.transform_vertex_to_point_for_map(&start_vertex);
         let end_point = self.transform_vertex_to_point_for_map(&end_vertex);
 
-        let arrow = Vertex::new(arrow_length as i16, arrow_length as i16);
+        let arrow = Vertex::new(arrow_length, arrow_length);
         let right_arrow_vertex = &end_vertex + &arrow.rotate(self.player.angle - PI - PI / 4.0);
         let left_arrow_vertex = &end_vertex + &arrow.rotate(self.player.angle - PI + PI / 4.0);
         let right_arrow_point = self.transform_vertex_to_point_for_map(&right_arrow_vertex);
@@ -137,7 +137,7 @@ impl Game {
 
     fn process_down_keys(&mut self) {
         const ROTATE_ANGLE: f32 = PI / 128.0;
-        const MOVE_LENGTH: i16 = (SCREEN_WIDTH as f32 / 256.0) as i16;
+        const MOVE_LENGTH: f32 = SCREEN_WIDTH as f32 / 256.0;
 
         let alt_down = self.pressed_keys.contains(&Keycode::LAlt)
             || self.pressed_keys.contains(&Keycode::RAlt);
@@ -146,7 +146,7 @@ impl Game {
             || self.pressed_keys.contains(&Keycode::RShift);
 
         let move_length = if shift_down {
-            MOVE_LENGTH * 2
+            MOVE_LENGTH * 2.0
         } else {
             MOVE_LENGTH
         };

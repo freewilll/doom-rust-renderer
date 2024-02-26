@@ -10,8 +10,8 @@ pub enum ThingTypes {
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct Thing {
-    pub x: i16,
-    pub y: i16,
+    pub x: f32,
+    pub y: f32,
     pub angle: f32, // In radians. 0=East, pi/2=North, pi=West, 3pi/2=South
     pub thing_type: i16,
     pub flags: i16,
@@ -26,8 +26,8 @@ pub fn load_things(wad_file: &WadFile, map_name: &str) -> Vec<Rc<Thing>> {
         let offset = dir_entry.offset as usize + i * 10;
 
         let thing = Thing {
-            x: wad_file.read_i16(offset),
-            y: wad_file.read_i16(offset + 2),
+            x: wad_file.read_f32_from_i16(offset),
+            y: wad_file.read_f32_from_i16(offset + 2),
             angle: (wad_file.read_i16(offset + 4) as f32).to_radians(),
             thing_type: wad_file.read_i16(offset + 6),
             flags: wad_file.read_i16(offset + 8),
