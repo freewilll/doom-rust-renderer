@@ -1,4 +1,5 @@
 use crate::wad::{MapLumpName, WadFile};
+use std::ops::{Add, Sub};
 use std::rc::Rc;
 
 #[derive(Debug)]
@@ -6,6 +7,41 @@ use std::rc::Rc;
 pub struct Vertex {
     pub x: i16,
     pub y: i16,
+}
+
+impl Vertex {
+    pub fn new(x: i16, y: i16) -> Vertex {
+        Vertex { x: x, y: y }
+    }
+
+    pub fn rotate(&self, angle: f32) -> Vertex {
+        Vertex {
+            x: (self.x as f32 * angle.cos()) as i16,
+            y: (self.y as f32 * angle.sin()) as i16,
+        }
+    }
+}
+
+impl<'a, 'b> Add<&'b Vertex> for &'a Vertex {
+    type Output = Vertex;
+
+    fn add(self, other: &'b Vertex) -> Vertex {
+        Vertex {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
+    }
+}
+
+impl<'a, 'b> Sub<&'b Vertex> for &'a Vertex {
+    type Output = Vertex;
+
+    fn sub(self, other: &'b Vertex) -> Vertex {
+        Vertex {
+            x: self.x - other.x,
+            y: self.y - other.y,
+        }
+    }
 }
 
 pub fn load_vertexes(wad_file: &WadFile, map_name: &str) -> Vec<Rc<Vertex>> {

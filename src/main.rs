@@ -5,6 +5,7 @@ mod map;
 mod nodes;
 mod segs;
 mod subsectors;
+mod things;
 mod vertexes;
 mod wad;
 

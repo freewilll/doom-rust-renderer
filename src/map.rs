@@ -3,12 +3,14 @@ use crate::linedefs::{load_linedefs, Linedef};
 use crate::nodes::{load_nodes, Node};
 use crate::segs::{load_segs, Seg};
 use crate::subsectors::{load_subsectors, SubSector};
+use crate::things::{load_things, Thing};
 use crate::vertexes::{load_vertexes, Vertex};
 use crate::wad::WadFile;
 use std::rc::Rc;
 
 #[allow(dead_code)]
 pub struct Map {
+    pub things: Vec<Rc<Thing>>,         // Monsters, weapons, keys, etc
     pub vertexes: Vec<Rc<Vertex>>,      // Vertexes that make up the lines
     pub linedefs: Vec<Rc<Linedef>>,     // Lines
     pub segs: Vec<Rc<Seg>>,             // Lines, split by the BSP builder
@@ -21,6 +23,7 @@ pub struct Map {
 impl Map {
     // Load map
     pub fn new(wad_file: &WadFile, map_name: &str) -> Map {
+        let things = load_things(wad_file, map_name);
         let vertexes = load_vertexes(wad_file, map_name);
         let linedefs = load_linedefs(wad_file, &vertexes, map_name);
         let segs = load_segs(wad_file, &vertexes, &linedefs, map_name);
@@ -36,6 +39,7 @@ impl Map {
         }
 
         Map {
+            things: things,
             vertexes: vertexes,
             linedefs: linedefs,
             segs: segs,

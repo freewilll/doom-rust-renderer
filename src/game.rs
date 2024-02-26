@@ -1,5 +1,10 @@
 use crate::map::Map;
+use crate::things::{get_thing_by_type, ThingTypes};
 use crate::vertexes::Vertex;
+
+use std::collections::HashSet;
+use std::f32::consts::PI;
+use std::time::Duration;
 
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -8,17 +13,23 @@ use sdl2::rect::Point;
 use sdl2::render::Canvas;
 use sdl2::video::Window;
 use sdl2::Sdl;
-use std::time::Duration;
 
 const TITLE: &str = "A doom renderer in Rust";
 const SCREEN_WIDTH: u32 = 1024;
 const SCREEN_HEIGHT: u32 = 768;
 const MAP_BORDER: u32 = 20;
 
+pub struct Player {
+    pub position: Vertex,
+    pub angle: f32,
+}
+
 pub struct Game {
     sdl_context: Sdl,
     canvas: Canvas<Window>,
     map: Map,
+    player: Player,
+    pressed_keys: HashSet<Keycode>,
 }
 
 impl Game {
@@ -34,10 +45,18 @@ impl Game {
 
         let canvas = window.into_canvas().build().unwrap();
 
+        let player1_start = get_thing_by_type(&map.things, ThingTypes::Player1Start);
+        let player = Player {
+            position: Vertex::new(player1_start.x, player1_start.y),
+            angle: player1_start.angle,
+        };
+
         Game {
             sdl_context: sdl_context,
             canvas: canvas,
             map: map,
+            player: player,
+            pressed_keys: HashSet::new(),
         }
     }
 
@@ -70,8 +89,8 @@ impl Game {
     }
 
     #[allow(dead_code)]
-    pub fn draw_map_nodes(&mut self) {
-        self.canvas.set_draw_color(Color::RGB(255, 255, 0));
+    fn draw_map_nodes(&mut self) {
+        self.canvas.set_draw_color(Color::RGB(255, 0, 0));
 
         for node in &self.map.nodes {
             let x = node.x;
@@ -84,10 +103,84 @@ impl Game {
                 x: x + dx,
                 y: y + dy,
             };
+
             let start_point = self.transform_vertex_to_point_for_map(&start_vertex);
             let end_point = self.transform_vertex_to_point_for_map(&end_vertex);
 
             self.canvas.draw_line(start_point, end_point).unwrap();
+        }
+    }
+
+    #[allow(dead_code)]
+    fn draw_map_player(&mut self) {
+        self.canvas.set_draw_color(Color::RGB(255, 255, 0));
+
+        let length = SCREEN_WIDTH as f32 / 16.0;
+        let arrow_length = SCREEN_WIDTH as f32 / 32.0;
+
+        let start_vertex = &self.player.position;
+        let start_delta = Vertex::new(length as i16, length as i16).rotate(self.player.angle);
+        let end_vertex = start_vertex + &start_delta;
+        let start_point = self.transform_vertex_to_point_for_map(&start_vertex);
+        let end_point = self.transform_vertex_to_point_for_map(&end_vertex);
+
+        let arrow = Vertex::new(arrow_length as i16, arrow_length as i16);
+        let right_arrow_vertex = &end_vertex + &arrow.rotate(self.player.angle - PI - PI / 4.0);
+        let left_arrow_vertex = &end_vertex + &arrow.rotate(self.player.angle - PI + PI / 4.0);
+        let right_arrow_point = self.transform_vertex_to_point_for_map(&right_arrow_vertex);
+        let left_arrow_point = self.transform_vertex_to_point_for_map(&left_arrow_vertex);
+
+        self.canvas.draw_line(start_point, end_point).unwrap();
+        self.canvas.draw_line(right_arrow_point, end_point).unwrap();
+        self.canvas.draw_line(left_arrow_point, end_point).unwrap();
+    }
+
+    fn process_down_keys(&mut self) {
+        const ROTATE_ANGLE: f32 = PI / 128.0;
+        const MOVE_LENGTH: i16 = (SCREEN_WIDTH as f32 / 256.0) as i16;
+
+        let alt_down = self.pressed_keys.contains(&Keycode::LAlt)
+            || self.pressed_keys.contains(&Keycode::RAlt);
+
+        let shift_down = self.pressed_keys.contains(&Keycode::LShift)
+            || self.pressed_keys.contains(&Keycode::RShift);
+
+        let move_length = if shift_down {
+            MOVE_LENGTH * 2
+        } else {
+            MOVE_LENGTH
+        };
+
+        let rotate_angle = if shift_down {
+            ROTATE_ANGLE * 2.0
+        } else {
+            ROTATE_ANGLE
+        };
+
+        if !alt_down && self.pressed_keys.contains(&Keycode::Left) {
+            self.player.angle += rotate_angle;
+        }
+
+        if alt_down && self.pressed_keys.contains(&Keycode::Left) {
+            self.player.position.x -= move_length;
+        }
+
+        if !alt_down && self.pressed_keys.contains(&Keycode::Right) {
+            self.player.angle -= rotate_angle;
+        }
+
+        if alt_down && self.pressed_keys.contains(&Keycode::Right) {
+            self.player.position.x += move_length;
+        }
+
+        if self.pressed_keys.contains(&Keycode::Up) {
+            let delta = Vertex::new(move_length, move_length).rotate(self.player.angle);
+            self.player.position = &self.player.position + &delta;
+        }
+
+        if self.pressed_keys.contains(&Keycode::Down) {
+            let delta = Vertex::new(move_length, move_length).rotate(self.player.angle);
+            self.player.position = &self.player.position - &delta;
         }
     }
 
@@ -98,6 +191,7 @@ impl Game {
             self.canvas.clear();
             self.draw_map_linedefs();
             self.draw_map_nodes();
+            self.draw_map_player();
             self.canvas.present();
 
             for event in event_pump.poll_iter() {
@@ -106,10 +200,31 @@ impl Game {
                     | Event::KeyDown {
                         keycode: Some(Keycode::Escape),
                         ..
+                    }
+                    | Event::KeyDown {
+                        keycode: Some(Keycode::Q),
+                        ..
                     } => break 'running,
+
+                    Event::KeyDown {
+                        keycode: Some(keycode),
+                        ..
+                    } => {
+                        self.pressed_keys.insert(keycode);
+                    }
+
+                    Event::KeyUp {
+                        keycode: Some(keycode),
+                        ..
+                    } => {
+                        self.pressed_keys.remove(&keycode);
+                    }
+
                     _ => {}
                 }
             }
+
+            self.process_down_keys();
 
             ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
         }
