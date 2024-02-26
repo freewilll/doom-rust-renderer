@@ -42,17 +42,19 @@ impl Game {
     }
 
     fn transform_vertex_to_point_for_map(&self, v: &Vertex) -> Point {
-        let x_size: f32 = (self.map.bottom_right.x - self.map.top_left.x).into();
-        let y_size: f32 = (self.map.bottom_right.y - self.map.top_left.y).into();
+        let x_size: f32 = (self.map.bounding_box.right - self.map.bounding_box.left).into();
+        let y_size: f32 = (self.map.bounding_box.bottom - self.map.bounding_box.top).into();
 
         let screen_width: f32 = (SCREEN_WIDTH - MAP_BORDER * 2) as f32;
         let screen_height: f32 = (SCREEN_HEIGHT - MAP_BORDER * 2) as f32;
         let map_border: f32 = MAP_BORDER as f32;
 
-        let x = (map_border + (v.x - self.map.top_left.x) as f32 * screen_width / x_size) as i32;
+        let x =
+            (map_border + (v.x - self.map.bounding_box.left) as f32 * screen_width / x_size) as i32;
         let y = (map_border + screen_height
             - 1.0
-            - (v.y - self.map.top_left.y) as f32 * screen_height / y_size) as i32;
+            - (v.y - self.map.bounding_box.top) as f32 * screen_height / y_size)
+            as i32;
         Point::new(x.into(), y.into())
     }
 
