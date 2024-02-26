@@ -63,11 +63,8 @@ impl Game {
         self.canvas.set_draw_color(Color::RGB(255, 255, 255));
 
         for linedef in &self.map.linedefs {
-            let start_vertex = &self.map.vertexes[linedef.start_vertex as usize];
-            let end_vertex = &self.map.vertexes[linedef.end_vertex as usize];
-
-            let start_point = self.transform_vertex_to_point_for_map(&start_vertex);
-            let end_point = self.transform_vertex_to_point_for_map(&end_vertex);
+            let start_point = self.transform_vertex_to_point_for_map(&linedef.start_vertex);
+            let end_point = self.transform_vertex_to_point_for_map(&linedef.end_vertex);
             self.canvas.draw_line(start_point, end_point).unwrap();
         }
     }

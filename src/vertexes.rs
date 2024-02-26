@@ -1,4 +1,5 @@
 use crate::wad::{MapLumpName, WadFile};
+use std::rc::Rc;
 
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -7,7 +8,7 @@ pub struct Vertex {
     pub y: i16,
 }
 
-pub fn load_vertexes(wad_file: &WadFile, map_name: &str) -> Vec<Vertex> {
+pub fn load_vertexes(wad_file: &WadFile, map_name: &str) -> Vec<Rc<Vertex>> {
     let dir_entry = wad_file.get_dir_entry_for_map_lump(map_name, MapLumpName::Vertexes);
     let count = dir_entry.size as usize / 4; // A vertex is 4 bytes long
 
@@ -18,7 +19,7 @@ pub fn load_vertexes(wad_file: &WadFile, map_name: &str) -> Vec<Vertex> {
             x: wad_file.read_i16(offset),
             y: wad_file.read_i16(offset + 2),
         };
-        results.push(vertex);
+        results.push(Rc::new(vertex));
     }
 
     results
