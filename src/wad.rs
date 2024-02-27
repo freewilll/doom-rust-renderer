@@ -97,6 +97,23 @@ impl WadFile<'_> {
         wad_file
     }
 
+    // Read an 8 character null terminated string
+    pub fn read_lump_name(&self, offset: usize) -> String {
+        if self.file[offset + 7] == 0 {
+            // The lump name is null terminated
+            CStr::from_bytes_until_nul(&self.file[offset..offset + 8])
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_string()
+        } else {
+            // The lump name is exactly 8 bytes long
+            str::from_utf8(&self.file[offset..offset + 8])
+                .unwrap()
+                .to_string()
+        }
+    }
+
     fn load_dirs(&mut self) {
         for i in 0..self.header.lump_count {
             // A directory entry is 16 bytes long
@@ -114,19 +131,10 @@ impl WadFile<'_> {
                     .unwrap(),
             );
 
-            let name = if self.file[dir_entry_offset + 15] == 0 {
-                // The lump name is null terminated
-                CStr::from_bytes_until_nul(&self.file[dir_entry_offset + 8..dir_entry_offset + 16])
-                    .unwrap()
-                    .to_str()
-                    .unwrap()
-            } else {
-                // The lump name is exactly 8 bytes long
-                str::from_utf8(&self.file[dir_entry_offset + 8..dir_entry_offset + 16]).unwrap()
-            };
+            let name = self.read_lump_name(dir_entry_offset + 8);
 
             let dir_entry = DirEntry {
-                name: name.to_string(),
+                name: name,
                 offset: offset,
                 size: size,
             };
