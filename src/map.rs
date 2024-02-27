@@ -29,12 +29,12 @@ impl Map {
     pub fn new(wad_file: &WadFile, map_name: &str) -> Map {
         let things = load_things(wad_file, map_name);
         let vertexes = load_vertexes(wad_file, map_name);
-        let linedefs = load_linedefs(wad_file, &vertexes, map_name);
+        let sectors = load_sectors(wad_file, map_name);
+        let sidedefs = load_sidedefs(wad_file, &sectors, map_name);
+        let linedefs = load_linedefs(wad_file, &vertexes, &sidedefs, map_name);
         let segs = load_segs(wad_file, &vertexes, &linedefs, map_name);
         let subsectors = load_subsectors(wad_file, &segs, map_name);
         let nodes = load_nodes(wad_file, &subsectors, map_name);
-        let sectors = load_sectors(wad_file, map_name);
-        let sidedefs = load_sidedefs(wad_file, &sectors, map_name);
         let root_node = Rc::clone(&nodes[nodes.len() - 1]);
 
         let mut bounding_box = BoundingBox::extendable_new();
@@ -48,11 +48,11 @@ impl Map {
             things: things,
             vertexes: vertexes,
             linedefs: linedefs,
+            sidedefs: sidedefs,
             segs: segs,
             subsectors: subsectors,
             nodes: nodes,
             sectors: sectors,
-            sidedefs: sidedefs,
             root_node: root_node,
             bounding_box: bounding_box,
         }
