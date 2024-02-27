@@ -1,8 +1,8 @@
 use crate::wad::{MapLumpName, WadFile};
+use std::fmt;
 use std::ops::{Add, Sub};
 use std::rc::Rc;
 
-#[derive(Debug)]
 #[allow(dead_code)]
 pub struct Vertex {
     pub x: f32,
@@ -19,6 +19,22 @@ impl Vertex {
             x: self.x as f32 * angle.cos(),
             y: self.y as f32 * angle.sin(),
         }
+    }
+
+    pub fn cross_product(&self, other: &Vertex) -> f32 {
+        self.x * other.y - self.y * other.x
+    }
+
+    // Are we left of the line v1 - v2?
+    // It is assumed self isn't on the line.
+    pub fn is_left_of_line(&self, v1: &Vertex, v2: &Vertex) -> bool {
+        (&(self - v1)).cross_product(&(v2 - v1)) <= 0.0
+    }
+}
+
+impl fmt::Debug for Vertex {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "({}, {})", self.x, self.y)
     }
 }
 

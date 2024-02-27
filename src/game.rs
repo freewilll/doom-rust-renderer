@@ -1,4 +1,5 @@
 use crate::map::Map;
+use crate::renderer::render_map;
 use crate::things::{get_thing_by_type, ThingTypes};
 use crate::vertexes::Vertex;
 
@@ -19,6 +20,7 @@ const SCREEN_WIDTH: u32 = 1024;
 const SCREEN_HEIGHT: u32 = 768;
 const MAP_BORDER: u32 = 20;
 
+#[derive(Debug)]
 pub struct Player {
     pub position: Vertex,
     pub angle: f32,
@@ -26,10 +28,11 @@ pub struct Player {
 
 pub struct Game {
     sdl_context: Sdl,
-    canvas: Canvas<Window>,
-    map: Map,
-    player: Player,
-    pressed_keys: HashSet<Keycode>,
+    pub canvas: Canvas<Window>,
+    pub map: Map,
+    pub player: Player,
+    pub pressed_keys: HashSet<Keycode>,
+    pub viewing_map: bool,
 }
 
 impl Game {
@@ -57,10 +60,11 @@ impl Game {
             map: map,
             player: player,
             pressed_keys: HashSet::new(),
+            viewing_map: true,
         }
     }
 
-    fn transform_vertex_to_point_for_map(&self, v: &Vertex) -> Point {
+    pub fn transform_vertex_to_point_for_map(&self, v: &Vertex) -> Point {
         let x_size: f32 = (self.map.bounding_box.right - self.map.bounding_box.left).into();
         let y_size: f32 = (self.map.bounding_box.bottom - self.map.bounding_box.top).into();
 
@@ -189,9 +193,16 @@ impl Game {
         'running: loop {
             self.canvas.set_draw_color(Color::RGB(0, 0, 0));
             self.canvas.clear();
-            self.draw_map_linedefs();
-            self.draw_map_nodes();
-            self.draw_map_player();
+
+            if self.viewing_map {
+                self.draw_map_linedefs();
+                self.draw_map_nodes();
+                self.draw_map_player();
+                render_map(self); // Temporarily call the renderer while in map mode
+            } else {
+                render_map(self);
+            }
+
             self.canvas.present();
 
             for event in event_pump.poll_iter() {
@@ -205,6 +216,13 @@ impl Game {
                         keycode: Some(Keycode::Q),
                         ..
                     } => break 'running,
+
+                    Event::KeyDown {
+                        keycode: Some(Keycode::Tab),
+                        ..
+                    } => {
+                        self.viewing_map = !self.viewing_map;
+                    }
 
                     Event::KeyDown {
                         keycode: Some(keycode),

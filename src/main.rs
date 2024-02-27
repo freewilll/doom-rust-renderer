@@ -3,6 +3,7 @@ mod geometry;
 mod linedefs;
 mod map;
 mod nodes;
+mod renderer;
 mod segs;
 mod subsectors;
 mod things;

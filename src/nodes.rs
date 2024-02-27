@@ -7,10 +7,9 @@ const NODE_IS_SUBSECTOR: i16 = 1 << 15;
 
 // A node's child is either a node itself or a subsector
 #[derive(Debug)]
-#[allow(dead_code)]
-struct NodeChild {
-    node: Option<Rc<Node>>,
-    subsector: Option<Rc<SubSector>>,
+pub enum NodeChild {
+    Node(Rc<Node>),
+    SubSector(Rc<SubSector>),
 }
 
 impl NodeChild {
@@ -20,15 +19,9 @@ impl NodeChild {
         let stripped_index = (index & !NODE_IS_SUBSECTOR) as usize;
 
         if is_subsector {
-            NodeChild {
-                node: None,
-                subsector: Some(Rc::clone(&subsectors[stripped_index])),
-            }
+            NodeChild::SubSector(Rc::clone(&subsectors[stripped_index]))
         } else {
-            NodeChild {
-                node: Some(Rc::clone(&nodes[stripped_index])),
-                subsector: None,
-            }
+            NodeChild::Node(Rc::clone(&nodes[stripped_index]))
         }
     }
 }
@@ -36,14 +29,14 @@ impl NodeChild {
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct Node {
-    pub x: f32,                      // x coordinate of partition line start
-    pub y: f32,                      // x coordinate of partition line start
-    pub dx: f32,                     // Change in x from start to end of partition line
-    pub dy: f32,                     // Change in y from start to end of partition line
-    right_bounding_box: BoundingBox, // Right bounding box
-    left_bounding_box: BoundingBox,  // Left bounding box
-    right_child: NodeChild,
-    left_child: NodeChild,
+    pub x: f32,                          // x coordinate of partition line start
+    pub y: f32,                          // x coordinate of partition line start
+    pub dx: f32,                         // Change in x from start to end of partition line
+    pub dy: f32,                         // Change in y from start to end of partition line
+    pub right_bounding_box: BoundingBox, // Right bounding box
+    pub left_bounding_box: BoundingBox,  // Left bounding box
+    pub right_child: NodeChild,
+    pub left_child: NodeChild,
 }
 
 // Load the node tree. Nodes in the WAD file are in order from bottom up, so
