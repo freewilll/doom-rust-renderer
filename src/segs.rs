@@ -6,11 +6,12 @@ use std::rc::Rc;
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct Seg {
+    pub id: i16,
     pub start_vertex: Rc<Vertex>, // Start
     pub end_vertex: Rc<Vertex>,   // End
     pub angle: i16,               // Angle, full circle is -32768 to 32767.
     pub linedef: Rc<Linedef>,     // Corresponding linedef
-    pub direction: bool,          // 0 (same as linedef) or 1 (opposite of linedef)
+    pub direction: bool,          // False (same as linedef) or True (opposite of linedef)
     pub offset: i16,              // distance along linedef to start of seg
 }
 
@@ -27,6 +28,7 @@ pub fn load_segs(
     for i in 0..count {
         let offset = dir_entry.offset as usize + i * 12;
         let seg = Seg {
+            id: i as i16,
             start_vertex: Rc::clone(&vertexes[wad_file.read_i16(offset) as usize]),
             end_vertex: Rc::clone(&vertexes[wad_file.read_i16(offset + 2) as usize]),
             angle: wad_file.read_i16(offset + 4),

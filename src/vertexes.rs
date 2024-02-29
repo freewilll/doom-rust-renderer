@@ -1,9 +1,11 @@
+use crate::geometry::Line;
 use crate::wad::{MapLumpName, WadFile};
 use std::fmt;
 use std::ops::{Add, Sub};
 use std::rc::Rc;
 
 #[allow(dead_code)]
+#[derive(Clone)]
 pub struct Vertex {
     pub x: f32,
     pub y: f32,
@@ -16,8 +18,8 @@ impl Vertex {
 
     pub fn rotate(&self, angle: f32) -> Vertex {
         Vertex {
-            x: self.x as f32 * angle.cos(),
-            y: self.y as f32 * angle.sin(),
+            x: self.x * angle.cos() - self.y * angle.sin(),
+            y: self.y * angle.cos() + self.x * angle.sin(),
         }
     }
 
@@ -25,10 +27,9 @@ impl Vertex {
         self.x * other.y - self.y * other.x
     }
 
-    // Are we left of the line v1 - v2?
-    // It is assumed self isn't on the line.
-    pub fn is_left_of_line(&self, v1: &Vertex, v2: &Vertex) -> bool {
-        (&(self - v1)).cross_product(&(v2 - v1)) <= 0.0
+    // Are we left or on the line ?
+    pub fn is_left_of_line(&self, other: &Line) -> bool {
+        (&(self - &other.start)).cross_product(&(&other.end - &other.start)) <= 0.0
     }
 }
 

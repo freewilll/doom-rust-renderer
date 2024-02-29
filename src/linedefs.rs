@@ -21,6 +21,7 @@ impl Flags {
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct Linedef {
+    pub id: i16,
     pub start_vertex: Rc<Vertex>,
     pub end_vertex: Rc<Vertex>,
     pub flags: i16,
@@ -58,6 +59,7 @@ pub fn load_linedefs(
         };
 
         let linedef = Linedef {
+            id: i as i16,
             start_vertex: Rc::clone(&vertexes[wad_file.read_i16(offset) as usize]),
             end_vertex: Rc::clone(&vertexes[wad_file.read_i16(offset + 2) as usize]),
             flags: wad_file.read_i16(offset + 4),

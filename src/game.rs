@@ -16,8 +16,8 @@ use sdl2::video::Window;
 use sdl2::Sdl;
 
 const TITLE: &str = "A doom renderer in Rust";
-const SCREEN_WIDTH: u32 = 1024;
-const SCREEN_HEIGHT: u32 = 768;
+pub const SCREEN_WIDTH: u32 = 1024;
+pub const SCREEN_HEIGHT: u32 = 768;
 const MAP_BORDER: u32 = 20;
 
 #[derive(Debug)]
@@ -32,7 +32,9 @@ pub struct Game {
     pub map: Map,
     pub player: Player,
     pub pressed_keys: HashSet<Keycode>,
-    pub viewing_map: bool,
+    pub viewing_map: i8,             // 0 = 3D, 1 = 3d + map, 2 = map
+    pub player_floor_height: f32,    // Set to the height of the sector the player is in
+    pub player_height_updated: bool, // Used by the renderer
 }
 
 impl Game {
@@ -60,7 +62,9 @@ impl Game {
             map: map,
             player: player,
             pressed_keys: HashSet::new(),
-            viewing_map: true,
+            viewing_map: 0,
+            player_floor_height: 0.0,
+            player_height_updated: false,
         }
     }
 
@@ -72,12 +76,10 @@ impl Game {
         let screen_height: f32 = (SCREEN_HEIGHT - MAP_BORDER * 2) as f32;
         let map_border: f32 = MAP_BORDER as f32;
 
-        let x =
-            (map_border + (v.x - self.map.bounding_box.left) as f32 * screen_width / x_size) as i32;
+        let x = (map_border + (v.x - self.map.bounding_box.left) * screen_width / x_size) as i32;
         let y = (map_border + screen_height
             - 1.0
-            - (v.y - self.map.bounding_box.top) as f32 * screen_height / y_size)
-            as i32;
+            - (v.y - self.map.bounding_box.top) * screen_height / y_size) as i32;
         Point::new(x.into(), y.into())
     }
 
@@ -123,18 +125,19 @@ impl Game {
         let arrow_length = SCREEN_WIDTH as f32 / 32.0;
 
         let start_vertex = &self.player.position;
-        let start_delta = Vertex::new(length, length).rotate(self.player.angle);
+        let start_delta = Vertex::new(length, 0.0).rotate(self.player.angle);
         let end_vertex = start_vertex + &start_delta;
         let start_point = self.transform_vertex_to_point_for_map(&start_vertex);
         let end_point = self.transform_vertex_to_point_for_map(&end_vertex);
 
-        let arrow = Vertex::new(arrow_length, arrow_length);
+        self.canvas.draw_line(start_point, end_point).unwrap();
+
+        // Draw arrow lines
+        let arrow = Vertex::new(arrow_length, 0.0);
         let right_arrow_vertex = &end_vertex + &arrow.rotate(self.player.angle - PI - PI / 4.0);
         let left_arrow_vertex = &end_vertex + &arrow.rotate(self.player.angle - PI + PI / 4.0);
         let right_arrow_point = self.transform_vertex_to_point_for_map(&right_arrow_vertex);
         let left_arrow_point = self.transform_vertex_to_point_for_map(&left_arrow_vertex);
-
-        self.canvas.draw_line(start_point, end_point).unwrap();
         self.canvas.draw_line(right_arrow_point, end_point).unwrap();
         self.canvas.draw_line(left_arrow_point, end_point).unwrap();
     }
@@ -161,29 +164,34 @@ impl Game {
             ROTATE_ANGLE
         };
 
+        // Rotation
         if !alt_down && self.pressed_keys.contains(&Keycode::Left) {
             self.player.angle += rotate_angle;
-        }
-
-        if alt_down && self.pressed_keys.contains(&Keycode::Left) {
-            self.player.position.x -= move_length;
         }
 
         if !alt_down && self.pressed_keys.contains(&Keycode::Right) {
             self.player.angle -= rotate_angle;
         }
 
-        if alt_down && self.pressed_keys.contains(&Keycode::Right) {
-            self.player.position.x += move_length;
+        // Strafe
+        if alt_down && self.pressed_keys.contains(&Keycode::Left) {
+            let delta = Vertex::new(move_length, 0.0).rotate(self.player.angle + PI / 2.0);
+            self.player.position = &self.player.position + &delta;
         }
 
+        if alt_down && self.pressed_keys.contains(&Keycode::Right) {
+            let delta = Vertex::new(move_length, 0.0).rotate(self.player.angle + PI / 2.0);
+            self.player.position = &self.player.position - &delta;
+        }
+
+        // Forward/backward
         if self.pressed_keys.contains(&Keycode::Up) {
-            let delta = Vertex::new(move_length, move_length).rotate(self.player.angle);
+            let delta = Vertex::new(move_length, 0.0).rotate(self.player.angle);
             self.player.position = &self.player.position + &delta;
         }
 
         if self.pressed_keys.contains(&Keycode::Down) {
-            let delta = Vertex::new(move_length, move_length).rotate(self.player.angle);
+            let delta = Vertex::new(move_length, 0.0).rotate(self.player.angle);
             self.player.position = &self.player.position - &delta;
         }
     }
@@ -194,12 +202,14 @@ impl Game {
             self.canvas.set_draw_color(Color::RGB(0, 0, 0));
             self.canvas.clear();
 
-            if self.viewing_map {
+            if self.viewing_map > 0 {
                 self.draw_map_linedefs();
                 self.draw_map_nodes();
                 self.draw_map_player();
-                render_map(self); // Temporarily call the renderer while in map mode
-            } else {
+                // render_map(self); // Temporarily call the renderer while in map mode
+            }
+
+            if self.viewing_map < 2 {
                 render_map(self);
             }
 
@@ -221,7 +231,7 @@ impl Game {
                         keycode: Some(Keycode::Tab),
                         ..
                     } => {
-                        self.viewing_map = !self.viewing_map;
+                        self.viewing_map = (self.viewing_map + 1) % 3;
                     }
 
                     Event::KeyDown {

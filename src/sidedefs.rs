@@ -5,12 +5,12 @@ use std::rc::Rc;
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct Sidedef {
-    x_offset: f32,
-    y_offset: f32,
-    upper_texture: String,
-    lower_texture: String,
-    middle_texture: String,
-    sector: Rc<Sector>, // Sector number this sidedef 'faces'
+    pub x_offset: f32,
+    pub y_offset: f32,
+    pub upper_texture: String,
+    pub lower_texture: String,
+    pub middle_texture: String,
+    pub sector: Rc<Sector>, // Sector number this sidedef 'faces'
 }
 
 pub fn load_sidedefs(

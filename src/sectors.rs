@@ -4,13 +4,13 @@ use std::rc::Rc;
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct Sector {
-    floor_height: i16,
-    ceiling_height: i16,
-    floor_texture: String,
-    ceiling_texture: String,
-    light_level: i16,
-    special_type: i16,
-    tag_number: i16,
+    pub floor_height: i16,
+    pub ceiling_height: i16,
+    pub floor_texture: String,
+    pub ceiling_texture: String,
+    pub light_level: i16,
+    pub special_type: i16,
+    pub tag_number: i16,
 }
 
 pub fn load_sectors(wad_file: &WadFile, map_name: &str) -> Vec<Rc<Sector>> {

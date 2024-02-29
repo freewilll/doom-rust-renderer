@@ -28,7 +28,7 @@ pub fn load_things(wad_file: &WadFile, map_name: &str) -> Vec<Rc<Thing>> {
         let thing = Thing {
             x: wad_file.read_f32_from_i16(offset),
             y: wad_file.read_f32_from_i16(offset + 2),
-            angle: (wad_file.read_i16(offset + 4) as f32).to_radians(),
+            angle: (wad_file.read_f32_from_i16(offset + 4)).to_radians(),
             thing_type: wad_file.read_i16(offset + 6),
             flags: wad_file.read_i16(offset + 8),
         };
