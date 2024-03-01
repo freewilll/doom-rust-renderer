@@ -91,10 +91,35 @@ fn clip_to_viewport(line: &Line) -> Option<Line> {
         return Some(line.clone());
     }
 
-    // If the line is entirely outside of the viewport, don't render it
-    // FIXME: this makes a wall the player is facing disappear if they get too close
-    // and the start/end both fall outside of the viewport.
-    if !start_in_viewport && !end_in_viewport {
+    // Determine intersections with the viewport
+    let left_intersection = line.intersection(&left);
+    let right_intersection = line.intersection(&right);
+
+    // Determine if the wall intersects the viewport in front of us
+    let left_intersected = if let Ok(left_intersection) = left_intersection.clone() {
+        if left_intersection.x >= 0.0 {
+            true
+        } else {
+            false
+        }
+    } else {
+        false
+    };
+
+    let right_intersected = if let Ok(right_intersection) = right_intersection.clone() {
+        if right_intersection.x >= 0.0 {
+            true
+        } else {
+            false
+        }
+    } else {
+        false
+    };
+
+    // If the line is entirely outside of the viewport, there are two cases:
+    // - The wall is in front of us and has intersections in the viewport: it's visible
+    // - Otherwise: it's not in view
+    if !start_in_viewport && !end_in_viewport && !left_intersected && !right_intersected {
         return None;
     }
 
@@ -102,39 +127,27 @@ fn clip_to_viewport(line: &Line) -> Option<Line> {
     let mut start = line.start.clone();
     let mut end = line.end.clone();
 
-    // Clip start outside left viewport
-    if start_outside_left {
-        if let Ok(left_intersection) = line.intersection(&left) {
-            if left_intersection.x >= 0.0 {
-                start = left_intersection;
-            }
+    if left_intersected {
+        // Clip start outside left viewport
+        if start_outside_left {
+            start = left_intersection.clone().unwrap();
+        }
+
+        // Clip end outside left viewport
+        if end_outside_left {
+            end = left_intersection.clone().unwrap();
         }
     }
 
-    // Clip end outside left viewport
-    if end_outside_left {
-        if let Ok(left_intersection) = line.intersection(&left) {
-            if left_intersection.x >= 0.0 {
-                end = left_intersection;
-            }
+    if right_intersected {
+        // Clip start outside right viewport
+        if start_outside_right {
+            start = right_intersection.clone().unwrap();
         }
-    }
 
-    // Clip start outside right viewport
-    if start_outside_right {
-        if let Ok(right_intersection) = line.intersection(&right) {
-            if right_intersection.x >= 0.0 {
-                start = right_intersection;
-            }
-        }
-    }
-
-    // Clip end outside right viewport
-    if end_outside_right {
-        if let Ok(right_intersection) = line.intersection(&right) {
-            if right_intersection.x >= 0.0 {
-                end = right_intersection;
-            }
+        // Clip end outside right viewport
+        if end_outside_right {
+            end = right_intersection.clone().unwrap();
         }
     }
 
@@ -279,10 +292,10 @@ fn render_seg(game: &mut Game, seg: &Seg) {
         }
     };
 
-    if clipped_line.start.x < 0.01 {
+    if clipped_line.start.x < -0.01 {
         panic!(
-            "Clipped line x <= 0.0 {:?} player: {:?}",
-            &clipped_line.start, &game.player.position
+            "Clipped line x < -0.01: {:?} player: {:?}",
+            &clipped_line.start.x, &game.player.position
         );
     }
 
