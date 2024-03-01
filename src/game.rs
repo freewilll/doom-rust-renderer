@@ -50,7 +50,7 @@ impl Game {
             .build()
             .unwrap();
 
-        let canvas = window.into_canvas().build().unwrap();
+        let canvas = window.into_canvas().present_vsync().build().unwrap();
 
         let player1_start = get_thing_by_type(&map.things, ThingTypes::Player1Start);
         let player = Player {
