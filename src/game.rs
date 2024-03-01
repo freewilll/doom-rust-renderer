@@ -246,14 +246,14 @@ impl Game {
             self.canvas.set_draw_color(Color::RGB(0, 0, 0));
             self.canvas.clear();
 
+            if self.viewing_map < 2 {
+                render_map(self);
+            }
+
             if self.viewing_map > 0 {
                 self.draw_map_linedefs();
                 self.draw_map_nodes();
                 self.draw_map_player();
-            }
-
-            if self.viewing_map < 2 {
-                render_map(self);
             }
 
             self.canvas.present();
