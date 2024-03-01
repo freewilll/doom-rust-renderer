@@ -1,7 +1,10 @@
+use crate::geometry::Line;
 use crate::map::Map;
+use crate::nodes::NodeChild;
 use crate::renderer::render_map;
 use crate::things::{get_thing_by_type, ThingTypes};
 use crate::vertexes::Vertex;
+use std::rc::Rc;
 
 use std::collections::HashSet;
 use std::f32::consts::PI;
@@ -32,9 +35,8 @@ pub struct Game {
     pub map: Map,
     pub player: Player,
     pub pressed_keys: HashSet<Keycode>,
-    pub viewing_map: i8,             // 0 = 3D, 1 = 3d + map, 2 = map
-    pub player_floor_height: f32,    // Set to the height of the sector the player is in
-    pub player_height_updated: bool, // Used by the renderer
+    pub viewing_map: i8,          // 0 = 3D, 1 = 3d + map, 2 = map
+    pub player_floor_height: f32, // Set to the height of the sector the player is in
 }
 
 impl Game {
@@ -64,7 +66,6 @@ impl Game {
             pressed_keys: HashSet::new(),
             viewing_map: 0,
             player_floor_height: 0.0,
-            player_height_updated: false,
         }
     }
 
@@ -177,22 +178,65 @@ impl Game {
         if alt_down && self.pressed_keys.contains(&Keycode::Left) {
             let delta = Vertex::new(move_length, 0.0).rotate(self.player.angle + PI / 2.0);
             self.player.position = &self.player.position + &delta;
+            self.update_current_player_height();
         }
 
         if alt_down && self.pressed_keys.contains(&Keycode::Right) {
             let delta = Vertex::new(move_length, 0.0).rotate(self.player.angle + PI / 2.0);
             self.player.position = &self.player.position - &delta;
+            self.update_current_player_height();
         }
 
         // Forward/backward
         if self.pressed_keys.contains(&Keycode::Up) {
             let delta = Vertex::new(move_length, 0.0).rotate(self.player.angle);
             self.player.position = &self.player.position + &delta;
+            self.update_current_player_height();
         }
 
         if self.pressed_keys.contains(&Keycode::Down) {
             let delta = Vertex::new(move_length, 0.0).rotate(self.player.angle);
             self.player.position = &self.player.position - &delta;
+            self.update_current_player_height();
+        }
+    }
+
+    // Walk down the BSP tree to find the sector floor height the player is in
+    fn update_current_player_height(&mut self) {
+        let mut node = Rc::clone(&self.map.root_node);
+
+        loop {
+            let v1 = Vertex::new(node.x, node.y);
+            let v2 = &v1 + &Vertex::new(node.dx, node.dy);
+
+            let is_left = self.player.position.is_left_of_line(&Line::new(&v1, &v2));
+
+            let child = if is_left {
+                &node.left_child
+            } else {
+                &node.right_child
+            };
+
+            match child {
+                NodeChild::Node(child_node) => node = Rc::clone(child_node),
+                NodeChild::SubSector(subsector) => {
+                    for seg in &subsector.segs {
+                        let linedef = &seg.linedef;
+
+                        let opt_sidedef = if seg.direction {
+                            &linedef.back_sidedef
+                        } else {
+                            &linedef.front_sidedef
+                        };
+
+                        if let Some(sidedef) = opt_sidedef {
+                            self.player_floor_height = sidedef.sector.floor_height as f32;
+                            return;
+                        };
+                    }
+                    return;
+                }
+            }
         }
     }
 
@@ -206,7 +250,6 @@ impl Game {
                 self.draw_map_linedefs();
                 self.draw_map_nodes();
                 self.draw_map_player();
-                // render_map(self); // Temporarily call the renderer while in map mode
             }
 
             if self.viewing_map < 2 {

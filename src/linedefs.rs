@@ -3,7 +3,7 @@ use crate::vertexes::Vertex;
 use crate::wad::{MapLumpName, WadFile};
 use std::rc::Rc;
 
-struct Flags;
+pub struct Flags;
 
 #[allow(dead_code)]
 impl Flags {
