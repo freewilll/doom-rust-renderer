@@ -63,8 +63,8 @@ pub fn load_nodes(
             right_bounding_box: BoundingBox {
                 top: wad_file.read_f32_from_i16(offset + 8),
                 bottom: wad_file.read_f32_from_i16(offset + 10),
-                left: wad_file.read_f32_from_i16(offset + 10),
-                right: wad_file.read_f32_from_i16(offset + 12),
+                left: wad_file.read_f32_from_i16(offset + 12),
+                right: wad_file.read_f32_from_i16(offset + 14),
             },
             left_bounding_box: BoundingBox {
                 top: wad_file.read_f32_from_i16(offset + 16),

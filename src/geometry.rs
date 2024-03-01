@@ -27,6 +27,15 @@ impl BoundingBox {
         self.top = self.top.min(v.y);
         self.bottom = self.bottom.max(v.y);
     }
+
+    // Is a vertex in the bounding box?
+    #[allow(dead_code)]
+    pub fn contains(&self, vertex: &Vertex) -> bool {
+        self.left <= vertex.x
+            && self.right >= vertex.x
+            && self.top <= vertex.y
+            && self.bottom <= vertex.x
+    }
 }
 
 #[derive(Debug, Clone)]
