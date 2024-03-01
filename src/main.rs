@@ -1,3 +1,5 @@
+use clap::{arg, command, Parser};
+
 mod game;
 mod geometry;
 mod linedefs;
@@ -28,12 +30,25 @@ fn read_file(filename: &str) -> Vec<u8> {
     result
 }
 
-pub fn main() {
-    let map_name = std::env::args().nth(1).unwrap_or("e1m1".to_string());
+// Simple program to greet a person
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    // Map
+    #[arg(short, long, default_value_t = String::from("e1m1") )]
+    map: String,
 
-    let file_data = read_file("doom1.wad");
+    // Wad file
+    #[arg(short, long, default_value_t = String::from("doom1.wad") )]
+    wad: String,
+}
+
+pub fn main() {
+    let args = Args::parse();
+
+    let file_data = read_file(&args.wad);
     let wad_file = WadFile::new(&file_data);
-    let map = Map::new(&wad_file, map_name.as_str());
+    let map = Map::new(&wad_file, args.map.as_str());
 
     let mut game = Game::new(map);
     game.main_loop();
