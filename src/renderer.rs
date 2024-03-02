@@ -1,5 +1,6 @@
 use sdl2::pixels::Color;
 use sdl2::rect::Point;
+use std::cmp::{max, min};
 use std::rc::Rc;
 
 use crate::game::{Game, SCREEN_HEIGHT, SCREEN_WIDTH};
@@ -23,6 +24,14 @@ const COLORS: &'static [Color] = &[
     Color::RGB(255, 255, 0), // Yellow
 ];
 
+#[allow(dead_code)]
+#[derive(Debug)]
+struct Context {
+    hor_ocl: [bool; SCREEN_WIDTH as usize], // Horizontal occlusions
+    floor_ver_ocl: [i16; SCREEN_WIDTH as usize], // Vertical occlusions for the floor
+    ceiling_ver_ocl: [i16; SCREEN_WIDTH as usize], // Vertical occlusions for the ceiling
+}
+
 #[derive(Debug, PartialEq)]
 struct SdlLine {
     start: Point,
@@ -37,6 +46,7 @@ impl SdlLine {
         }
     }
 }
+
 // Length of the viewport from the player looking forward along the x axis
 const CAMERA_FOCUS: f32 = SCREEN_WIDTH as f32 / 2.0 as f32;
 
@@ -154,8 +164,8 @@ fn clip_to_viewport(line: &Line) -> Option<Line> {
     Some(Line::new(&start, &end))
 }
 
-// Draw a wall's non-vertical line
-fn draw_wall_floor_or_ceiling_line(game: &mut Game, line: &Line, height: f32) -> Option<SdlLine> {
+// Make the slanted non-vertical line for a sidedef & check the orientation.
+fn make_sidedef_non_vertical_line(line: &Line, height: f32) -> Option<SdlLine> {
     let transformed_start = perspective_transform(&line.start, height);
     let transformed_end = perspective_transform(&line.end, height);
 
@@ -173,13 +183,18 @@ fn draw_wall_floor_or_ceiling_line(game: &mut Game, line: &Line, height: f32) ->
         return None;
     }
 
-    game.canvas.draw_line(screen_start, screen_end).unwrap();
-
     Some(SdlLine::new(&screen_start, &screen_end))
 }
 
-// Draw a part of a wall. This can be either of the lower, middle and upper textures
-fn draw_wall(game: &mut Game, bottom: &SdlLine, top: &SdlLine) {
+// Draw a part of a sidedef. This can be either of the lower, middle and upper textures
+fn draw_sidedef(
+    game: &mut Game,
+    context: &mut Context,
+    bottom: &SdlLine,
+    top: &SdlLine,
+    is_lower_wall: bool, // For portals
+    is_upper_wall: bool, // For portals
+) {
     // Sanity check the wall is vertical
     if bottom.start.x != top.start.x {
         panic!(
@@ -200,20 +215,56 @@ fn draw_wall(game: &mut Game, bottom: &SdlLine, top: &SdlLine) {
         (top.start.y as f32 - top.end.y as f32) / (top.start.x as f32 - top.end.x as f32);
 
     for x in bottom.start.x as i16..bottom.end.x as i16 + 1 {
-        let bottom_y = bottom.start.y as f32 + (x as f32 - bottom.start.x as f32) * bottom_delta;
-        let top_y = top.start.y as f32 + (x as f32 - top.start.x as f32) * top_delta;
+        if x < 0 || x >= SCREEN_WIDTH as i16 {
+            continue;
+        };
 
-        game.canvas
-            .draw_line(
-                Point::new(x as i32, bottom_y as i32),
-                Point::new(x as i32, top_y as i32),
-            )
-            .unwrap();
+        if !context.hor_ocl[x as usize] {
+            // Calculate top and bottom of the line
+            let bottom_y =
+                (bottom.start.y as f32 + (x as f32 - bottom.start.x as f32) * bottom_delta) as i16;
+            let top_y = (top.start.y as f32 + (x as f32 - top.start.x as f32) * top_delta) as i16;
+
+            // Is the line occluded?
+            let floor_ver_ocl = context.floor_ver_ocl[x as usize];
+            let ceiling_ver_ocl = context.ceiling_ver_ocl[x as usize];
+
+            // Clip to non-occluded region (if any)
+            let clipped_bottom_y = min(floor_ver_ocl, bottom_y);
+            let clipped_top_y = max(ceiling_ver_ocl, top_y);
+
+            // The line isn't occluded. Draw it.
+            if clipped_bottom_y > clipped_top_y {
+                game.canvas
+                    .draw_line(
+                        Point::new(x as i32, clipped_bottom_y as i32),
+                        Point::new(x as i32, clipped_top_y as i32),
+                    )
+                    .unwrap();
+
+                // Update vertical occlusions
+                if is_lower_wall {
+                    context.floor_ver_ocl[x as usize] = clipped_top_y;
+                }
+
+                if is_upper_wall {
+                    context.ceiling_ver_ocl[x as usize] = clipped_bottom_y;
+                }
+            }
+        }
+
+        // Is it a solid wall (i.e. a non portal)?
+        if !is_lower_wall && !is_upper_wall {
+            // A vertical line occludes everything behind it
+            context.hor_ocl[x as usize] = true;
+            context.floor_ver_ocl[x as usize] = SCREEN_HEIGHT as i16 / 2;
+            context.ceiling_ver_ocl[x as usize] = SCREEN_HEIGHT as i16 / 2;
+        }
     }
 }
 
 // Draw a seg
-fn render_seg(game: &mut Game, seg: &Seg) {
+fn render_seg(game: &mut Game, context: &mut Context, seg: &Seg) {
     // Get the linedef
     let linedef = &seg.linedef;
 
@@ -307,13 +358,11 @@ fn render_seg(game: &mut Game, seg: &Seg) {
     let player_height = &game.player_floor_height + PLAYER_HEIGHT;
 
     // Draw the floor & ceiling lines
-    let floor = draw_wall_floor_or_ceiling_line(game, &clipped_line, floor_height - player_height);
-    let ceiling =
-        draw_wall_floor_or_ceiling_line(game, &clipped_line, ceiling_height - player_height);
+    let floor = make_sidedef_non_vertical_line(&clipped_line, floor_height - player_height);
+    let ceiling = make_sidedef_non_vertical_line(&clipped_line, ceiling_height - player_height);
 
     let portal_bottom = if let Some(portal_bottom_height) = opt_portal_bottom_height {
-        Some(draw_wall_floor_or_ceiling_line(
-            game,
+        Some(make_sidedef_non_vertical_line(
             &clipped_line,
             portal_bottom_height - player_height,
         ))
@@ -322,8 +371,7 @@ fn render_seg(game: &mut Game, seg: &Seg) {
     };
 
     let portal_top = if let Some(portal_top_height) = opt_portal_top_height {
-        Some(draw_wall_floor_or_ceiling_line(
-            game,
+        Some(make_sidedef_non_vertical_line(
             &clipped_line,
             portal_top_height - player_height,
         ))
@@ -337,19 +385,19 @@ fn render_seg(game: &mut Game, seg: &Seg) {
             if !is_two_sided {
                 // Draw a solid wall's middle texture, floor to ceiling
 
-                draw_wall(game, &floor, &ceiling);
+                draw_sidedef(game, context, &floor, &ceiling, false, false);
             } else {
                 // Draw a portal's lower and upper textures (if present)
 
                 if let Some(pb) = portal_bottom {
                     if let Some(pb) = pb {
-                        draw_wall(game, &floor, &pb);
+                        draw_sidedef(game, context, &floor, &pb, true, false);
                     }
                 }
 
                 if let Some(pt) = portal_top {
                     if let Some(pt) = pt {
-                        draw_wall(game, &pt, &ceiling);
+                        draw_sidedef(game, context, &pt, &ceiling, false, true);
                     }
                 }
             }
@@ -358,16 +406,15 @@ fn render_seg(game: &mut Game, seg: &Seg) {
 }
 
 // Render all segs in a subsector
-fn render_subsector(game: &mut Game, subsector: &SubSector) {
+fn render_subsector(game: &mut Game, context: &mut Context, subsector: &SubSector) {
     for seg in &subsector.segs {
-        render_seg(game, &seg);
+        render_seg(game, context, &seg);
     }
 }
 
 // Recurse through the BSP tree, drawing the subsector leaves
-// The BSP algorithm guarantees that the subsectors are visited either back to front
-// or in reverse. Here, we go from back to front and use the painter's algorithm.
-fn render_node(game: &mut Game, node: &Rc<Node>) {
+// The BSP algorithm guarantees that the subsectors are visited front to back.
+fn render_node(game: &mut Game, context: &mut Context, node: &Rc<Node>) {
     let v1 = Vertex::new(node.x, node.y);
     let v2 = &v1 + &Vertex::new(node.dx, node.dy);
 
@@ -379,28 +426,34 @@ fn render_node(game: &mut Game, node: &Rc<Node>) {
         (&node.right_child, &node.left_child)
     };
 
-    // TODO: Use the bounding box and only recurse into the back of the split
-    // if the player viewintersecrs with it.
-    match back_child {
+    match front_child {
         NodeChild::Node(node) => {
-            render_node(game, &node);
+            render_node(game, context, &node);
         }
         NodeChild::SubSector(subsector) => {
-            render_subsector(game, &subsector);
+            render_subsector(game, context, &subsector);
         }
     }
 
-    match front_child {
+    // TODO: Use the bounding box and only recurse into the back of the split
+    // if the player view intersects with it.
+    match back_child {
         NodeChild::Node(node) => {
-            render_node(game, &node);
+            render_node(game, context, &node);
         }
         NodeChild::SubSector(subsector) => {
-            render_subsector(game, &subsector);
+            render_subsector(game, context, &subsector);
         }
     }
 }
 
 pub fn render_map(game: &mut Game) {
+    let mut context = Context {
+        hor_ocl: [false; SCREEN_WIDTH as usize],
+        floor_ver_ocl: [SCREEN_HEIGHT as i16; SCREEN_WIDTH as usize],
+        ceiling_ver_ocl: [-1; SCREEN_WIDTH as usize],
+    };
+
     let root_node = Rc::clone(&game.map.root_node);
-    render_node(game, &root_node);
+    render_node(game, &mut context, &root_node);
 }
