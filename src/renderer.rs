@@ -197,6 +197,19 @@ fn clip_to_viewport(line: &Line) -> Option<Line> {
         return None;
     }
 
+    // If neither start nor end of the line is in the viewport and there is one intersection, then
+    // the line doesn't cross the viewport.
+    if !start_in_viewport && !end_in_viewport && (left_intersected != right_intersected) {
+        return None;
+    }
+
+    // Eliminate lines that instersect the viewport but are outside it
+    if (right_intersected && start_outside_right && end_outside_right)
+        || (left_intersected && start_outside_left && end_outside_left)
+    {
+        return None;
+    }
+
     // Clipping is needed
     let mut start = line.start.clone();
     let mut end = line.end.clone();
@@ -228,7 +241,7 @@ fn clip_to_viewport(line: &Line) -> Option<Line> {
     Some(Line::new(&start, &end))
 }
 
-// Make the slanted non-vertical line for a sidedef & check the orientation.
+// Make the slanted non-vertical line for a sidedef.
 fn make_sidedef_non_vertical_line(line: &Line, height: f32) -> SdlLine {
     let transformed_start = perspective_transform(&line.start, height);
     let transformed_end = perspective_transform(&line.end, height);
@@ -405,12 +418,6 @@ fn process_sidedef(
 
     check_sidedef_non_vertical_line_bounds(&bottom);
     check_sidedef_non_vertical_line_bounds(&top);
-
-    if bottom.start.x == bottom.end.x || top.start.x == top.end.x {
-        // TODO: it looks like some sidedefs get clipped entirely to the
-        // edges of the viewport. This should not be happening.
-        return;
-    }
 
     // Loop from the left x to the right x, calculating the y screen coordinates
     // for the bottom and top.
