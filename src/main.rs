@@ -41,6 +41,10 @@ struct Args {
     // Wad file
     #[arg(short, long, default_value_t = String::from("doom1.wad") )]
     wad: String,
+
+    // Turbo
+    #[arg(short, long, default_value_t = 100)]
+    turbo: i16,
 }
 
 pub fn main() {
@@ -50,6 +54,6 @@ pub fn main() {
     let wad_file = WadFile::new(&file_data);
     let map = Map::new(&wad_file, args.map.as_str());
 
-    let mut game = Game::new(map);
+    let mut game = Game::new(map, args.turbo);
     game.main_loop();
 }

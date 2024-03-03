@@ -37,10 +37,11 @@ pub struct Game {
     pub pressed_keys: HashSet<Keycode>,
     pub viewing_map: i8,          // 0 = 3D, 1 = 3d + map, 2 = map
     pub player_floor_height: f32, // Set to the height of the sector the player is in
+    pub turbo: f32,               // Percentage speed increase
 }
 
 impl Game {
-    pub fn new(map: Map) -> Game {
+    pub fn new(map: Map, turbo: i16) -> Game {
         let sdl_context = sdl2::init().unwrap();
         let video_subsystem = sdl_context.video().unwrap();
 
@@ -58,7 +59,7 @@ impl Game {
             angle: player1_start.angle,
         };
 
-        Game {
+        let mut game = Game {
             sdl_context: sdl_context,
             canvas: canvas,
             map: map,
@@ -66,7 +67,13 @@ impl Game {
             pressed_keys: HashSet::new(),
             viewing_map: 0,
             player_floor_height: 0.0,
-        }
+            turbo: (turbo as f32) / 100.0,
+        };
+
+        // Set initial player height
+        game.update_current_player_height();
+
+        game
     }
 
     pub fn transform_vertex_to_point_for_map(&self, v: &Vertex) -> Point {
@@ -154,15 +161,15 @@ impl Game {
             || self.pressed_keys.contains(&Keycode::RShift);
 
         let move_length = if shift_down {
-            MOVE_LENGTH * 2.0
+            MOVE_LENGTH * self.turbo * 2.0
         } else {
-            MOVE_LENGTH
+            MOVE_LENGTH * self.turbo
         };
 
         let rotate_angle = if shift_down {
-            ROTATE_ANGLE * 2.0
+            ROTATE_ANGLE * self.turbo * 2.0
         } else {
-            ROTATE_ANGLE
+            ROTATE_ANGLE * self.turbo
         };
 
         // Rotation
