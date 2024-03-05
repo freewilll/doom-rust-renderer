@@ -8,14 +8,14 @@ use sdl2::Sdl;
 use std::collections::HashSet;
 use std::f32::consts::PI;
 use std::rc::Rc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::geometry::Line;
 use crate::map::Map;
 use crate::nodes::NodeChild;
 use crate::palette::Palette;
 use crate::pictures::Pictures;
-use crate::renderer::render_map;
+use crate::renderer::Renderer;
 use crate::textures::Textures;
 use crate::things::{get_thing_by_type, ThingTypes};
 use crate::vertexes::Vertex;
@@ -29,6 +29,7 @@ const MAP_BORDER: u32 = 20;
 #[derive(Debug)]
 pub struct Player {
     pub position: Vertex,
+    pub floor_height: f32, // Set to the height of the sector the player is in
     pub angle: f32,
 }
 
@@ -40,10 +41,9 @@ pub struct Game {
     pub palette: Palette,
     pub player: Player,
     pub pressed_keys: HashSet<Keycode>,
-    pub viewing_map: i8,          // 0 = 3D, 1 = 3d + map, 2 = map
-    pub player_floor_height: f32, // Set to the height of the sector the player is in
-    pub turbo: f32,               // Percentage speed increase
-    pub pictures: Pictures,       // Pictures (aka patches)
+    pub viewing_map: i8,    // 0 = 3D, 1 = 3d + map, 2 = map
+    pub turbo: f32,         // Percentage speed increase
+    pub pictures: Pictures, // Pictures (aka patches)
     pub textures: Textures,
 }
 
@@ -58,12 +58,18 @@ impl Game {
             .build()
             .unwrap();
 
-        let canvas = window.into_canvas().present_vsync().build().unwrap();
+        let canvas = window
+            .into_canvas()
+            .software()
+            .present_vsync()
+            .build()
+            .unwrap();
 
         let player1_start = get_thing_by_type(&map.things, ThingTypes::Player1Start);
         let player = Player {
             position: Vertex::new(player1_start.x, player1_start.y),
             angle: player1_start.angle,
+            floor_height: 0.0,
         };
 
         let palette = Palette::new(&wad_file);
@@ -78,7 +84,6 @@ impl Game {
             player,
             pressed_keys: HashSet::new(),
             viewing_map: 0,
-            player_floor_height: 0.0,
             turbo: (turbo as f32) / 100.0,
             palette,
             pictures,
@@ -165,9 +170,9 @@ impl Game {
         self.canvas.draw_line(left_arrow_point, end_point).unwrap();
     }
 
-    fn process_down_keys(&mut self) {
-        const ROTATE_ANGLE: f32 = PI / 128.0;
-        const MOVE_LENGTH: f32 = SCREEN_WIDTH as f32 / 256.0;
+    fn process_down_keys(&mut self, duration: &Duration) {
+        let rotate_factor: f32 = duration.as_millis() as f32 * 0.0025; // radians/msec
+        let move_factor: f32 = duration.as_millis() as f32 * 0.291; // 291 mu/sec
 
         let alt_down = self.pressed_keys.contains(&Keycode::LAlt)
             || self.pressed_keys.contains(&Keycode::RAlt);
@@ -176,15 +181,15 @@ impl Game {
             || self.pressed_keys.contains(&Keycode::RShift);
 
         let move_length = if shift_down {
-            MOVE_LENGTH * self.turbo * 2.0
+            move_factor * self.turbo * 2.0
         } else {
-            MOVE_LENGTH * self.turbo
+            move_factor * self.turbo
         };
 
         let rotate_angle = if shift_down {
-            ROTATE_ANGLE * self.turbo * 2.0
+            rotate_factor * self.turbo * 2.0
         } else {
-            ROTATE_ANGLE * self.turbo
+            rotate_factor * self.turbo
         };
 
         // Rotation
@@ -252,7 +257,7 @@ impl Game {
                         };
 
                         if let Some(sidedef) = opt_sidedef {
-                            self.player_floor_height = sidedef.sector.floor_height as f32;
+                            self.player.floor_height = sidedef.sector.floor_height as f32;
                             return;
                         };
                     }
@@ -265,11 +270,13 @@ impl Game {
     pub fn main_loop(&mut self) {
         let mut event_pump = self.sdl_context.event_pump().unwrap();
         'running: loop {
+            let t0 = Instant::now();
+
             self.canvas.set_draw_color(Color::RGB(0, 0, 0));
             self.canvas.clear();
 
             if self.viewing_map < 2 {
-                render_map(self);
+                Renderer::new(&mut self.canvas, &self.map, &self.player).render();
             }
 
             if self.viewing_map > 0 {
@@ -317,9 +324,8 @@ impl Game {
                 }
             }
 
-            self.process_down_keys();
-
-            ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
+            let elapsed = t0.elapsed();
+            self.process_down_keys(&elapsed);
         }
     }
 }

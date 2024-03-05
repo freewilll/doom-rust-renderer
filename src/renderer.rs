@@ -1,11 +1,14 @@
 use sdl2::pixels::Color;
 use sdl2::rect::Point;
+use sdl2::render::Canvas;
+use sdl2::video::Window;
 use std::cmp::{max, min};
 use std::rc::Rc;
 
-use crate::game::{Game, SCREEN_HEIGHT, SCREEN_WIDTH};
+use crate::game::{Player, SCREEN_HEIGHT, SCREEN_WIDTH};
 use crate::geometry::Line;
 use crate::linedefs::Flags;
+use crate::map::Map;
 use crate::nodes::{Node, NodeChild};
 use crate::segs::Seg;
 use crate::subsectors::SubSector;
@@ -59,6 +62,16 @@ const VISPLANE_COLORS: &'static [Color] = &[
     Color::RGB(30, 144, 255),  //dodger blue
 ];
 
+pub struct Renderer<'a> {
+    canvas: &'a mut Canvas<Window>,
+    map: &'a Map,
+    player: &'a Player,
+    hor_ocl: [bool; SCREEN_WIDTH as usize], // Horizontal occlusions
+    floor_ver_ocl: [i16; SCREEN_WIDTH as usize], // Vertical occlusions for the floor
+    ceiling_ver_ocl: [i16; SCREEN_WIDTH as usize], // Vertical occlusions for the ceiling
+    vis_planes: Vec<Visplane>,
+}
+
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
 struct Visplane {
@@ -79,23 +92,6 @@ impl Visplane {
             top: [0; SCREEN_WIDTH as usize],
             bottom: [0; SCREEN_WIDTH as usize],
         }
-    }
-}
-
-#[allow(dead_code)]
-#[derive(Debug)]
-struct Context {
-    hor_ocl: [bool; SCREEN_WIDTH as usize], // Horizontal occlusions
-    floor_ver_ocl: [i16; SCREEN_WIDTH as usize], // Vertical occlusions for the floor
-    ceiling_ver_ocl: [i16; SCREEN_WIDTH as usize], // Vertical occlusions for the ceiling
-    visplanes: Vec<Visplane>,
-}
-
-impl Context {
-    fn occlude_vertical_line(&mut self, x: i16) {
-        self.hor_ocl[x as usize] = true;
-        self.floor_ver_ocl[x as usize] = SCREEN_HEIGHT as i16 / 2;
-        self.ceiling_ver_ocl[x as usize] = SCREEN_HEIGHT as i16 / 2;
     }
 }
 
@@ -130,15 +126,6 @@ fn perspective_transform(v: &Vertex, y: f32) -> Vertex {
     let z = v.x;
 
     Vertex::new(CAMERA_FOCUS * x / z, CAMERA_FOCUS * y / z)
-}
-
-#[allow(dead_code)]
-fn draw_seg_on_2d_map(game: &mut Game, seg: &Seg) {
-    // Draw the segment coordinates on the 2D map
-
-    let map_start = game.transform_vertex_to_point_for_map(&*seg.start_vertex);
-    let map_end = game.transform_vertex_to_point_for_map(&*seg.end_vertex);
-    game.canvas.draw_line(map_start, map_end).unwrap();
 }
 
 fn clip_to_viewport(line: &Line) -> Option<Line> {
@@ -267,58 +254,6 @@ fn make_sidedef_non_vertical_line(line: &Line, height: f32) -> SdlLine {
     SdlLine::new(&screen_start, &screen_end)
 }
 
-fn draw_visplane(game: &mut Game, visplane: &Visplane) {
-    const DEBUG_DRAW_OUTLINE: bool = false;
-
-    let solid_color = VISPLANE_COLORS[visplane.floor_texture_hash as usize % VISPLANE_COLORS.len()];
-    let outline_color = Color::RGB(255, 255, 255);
-
-    for x in visplane.left..visplane.right + 1 {
-        let top = visplane.top[x as usize];
-        let bottom = visplane.bottom[x as usize];
-
-        let top_point = Point::new(x as i32, top as i32);
-        let bottom_point = Point::new(x as i32, bottom as i32);
-
-        game.canvas.set_draw_color(solid_color);
-        game.canvas.draw_line(top_point, bottom_point).unwrap();
-
-        if DEBUG_DRAW_OUTLINE {
-            game.canvas.set_draw_color(outline_color);
-            game.canvas
-                .draw_points([top_point, bottom_point].as_slice())
-                .unwrap();
-        }
-    }
-
-    if DEBUG_DRAW_OUTLINE {
-        game.canvas.set_draw_color(outline_color);
-
-        let left = visplane.left as i32;
-        let right = visplane.right as i32;
-
-        game.canvas
-            .draw_line(
-                Point::new(left, visplane.bottom[left as usize] as i32),
-                Point::new(left, visplane.top[left as usize] as i32),
-            )
-            .unwrap();
-
-        game.canvas
-            .draw_line(
-                Point::new(right, visplane.bottom[right as usize] as i32),
-                Point::new(right, visplane.top[right as usize] as i32),
-            )
-            .unwrap();
-    }
-}
-
-fn draw_visplanes(game: &mut Game, context: &Context) {
-    for visplane in &context.visplanes {
-        draw_visplane(game, &visplane);
-    }
-}
-
 // Keep track of the visplane state while processing a sidedef
 struct SidedefVisPlanes {
     floor_texture_hash: i16,
@@ -341,17 +276,17 @@ impl SidedefVisPlanes {
         }
     }
 
-    // Add an existing visplane to the context and create a new one
-    fn flush(&mut self, context: &mut Context) {
+    // Add an existing visplane and create a new one
+    fn flush(&mut self, renderer: &mut Renderer) {
         if self.bottom_visplane_used {
-            context.visplanes.push(self.bottom_visplane.clone());
+            renderer.vis_planes.push(self.bottom_visplane.clone());
 
             self.bottom_visplane = Visplane::new(self.floor_texture_hash);
             self.bottom_visplane_used = false;
         }
 
         if self.top_visplane_used {
-            context.visplanes.push(self.top_visplane.clone());
+            renderer.vis_planes.push(self.top_visplane.clone());
 
             self.top_visplane = Visplane::new(self.ceiling_texture_hash);
             self.top_visplane_used = false;
@@ -385,390 +320,462 @@ impl SidedefVisPlanes {
     }
 }
 
-fn check_sidedef_non_vertical_line_bounds(line: &SdlLine) {
-    if line.start.x < 0 || line.start.x >= SCREEN_WIDTH as i32 {
-        panic!("Invalid line start x: {}", line.start.x);
+fn draw_visplane(canvas: &mut Canvas<Window>, visplane: &Visplane) {
+    const DEBUG_DRAW_OUTLINE: bool = false;
+
+    let solid_color = VISPLANE_COLORS[visplane.floor_texture_hash as usize % VISPLANE_COLORS.len()];
+    let outline_color = Color::RGB(255, 255, 255);
+
+    for x in visplane.left..visplane.right + 1 {
+        let top = visplane.top[x as usize];
+        let bottom = visplane.bottom[x as usize];
+
+        let top_point = Point::new(x as i32, top as i32);
+        let bottom_point = Point::new(x as i32, bottom as i32);
+
+        canvas.set_draw_color(solid_color);
+        canvas.draw_line(top_point, bottom_point).unwrap();
+
+        if DEBUG_DRAW_OUTLINE {
+            canvas.set_draw_color(outline_color);
+            canvas
+                .draw_points([top_point, bottom_point].as_slice())
+                .unwrap();
+        }
     }
 
-    if line.end.x < 0 || line.end.x >= SCREEN_WIDTH as i32 {
-        panic!("Invalid line end x: {}", line.end.x);
+    if DEBUG_DRAW_OUTLINE {
+        canvas.set_draw_color(outline_color);
+
+        let left = visplane.left as i32;
+        let right = visplane.right as i32;
+
+        canvas
+            .draw_line(
+                Point::new(left, visplane.bottom[left as usize] as i32),
+                Point::new(left, visplane.top[left as usize] as i32),
+            )
+            .unwrap();
+
+        canvas
+            .draw_line(
+                Point::new(right, visplane.bottom[right as usize] as i32),
+                Point::new(right, visplane.top[right as usize] as i32),
+            )
+            .unwrap();
     }
 }
 
-// Process a part of a sidedef.
-// This may involve drawing it, but might also involte processing occlusions and visplanes.
-fn process_sidedef(
-    game: &mut Game,
-    context: &mut Context,
-    bottom: &SdlLine,
-    top: &SdlLine,
-    floor_texture_hash: i16,
-    ceiling_texture_hash: i16,
-    is_whole_sidedef: bool, // For occlusion & visplane processing
-    is_lower_wall: bool,    // For portals: the rendered piece of wall
-    is_upper_wall: bool,    // For portals: the rendered piece of wall
-) {
-    // Do some sanity checks
-    if bottom.start.x != top.start.x || bottom.end.x != top.end.x {
-        panic!(
-            "Wall start not vertical: {} vs {} or {} vs {}",
-            &bottom.start.x, &top.start.x, &bottom.end.x, &top.end.x,
-        );
+impl Renderer<'_> {
+    pub fn new<'a>(
+        canvas: &'a mut Canvas<Window>,
+        map: &'a Map,
+        player: &'a Player,
+    ) -> Renderer<'a> {
+        Renderer {
+            canvas,
+            map,
+            player,
+            hor_ocl: [false; SCREEN_WIDTH as usize],
+            floor_ver_ocl: [SCREEN_HEIGHT as i16; SCREEN_WIDTH as usize],
+            ceiling_ver_ocl: [-1; SCREEN_WIDTH as usize],
+            vis_planes: Vec::new(),
+        }
     }
 
-    check_sidedef_non_vertical_line_bounds(&bottom);
-    check_sidedef_non_vertical_line_bounds(&top);
+    fn draw_visplanes(&mut self) {
+        for visplane in &self.vis_planes {
+            draw_visplane(&mut self.canvas, &visplane);
+        }
+    }
 
-    // Loop from the left x to the right x, calculating the y screen coordinates
-    // for the bottom and top.
-    let bottom_delta = (bottom.start.y as f32 - bottom.end.y as f32)
-        / (bottom.start.x as f32 - bottom.end.x as f32);
-    let top_delta =
-        (top.start.y as f32 - top.end.y as f32) / (top.start.x as f32 - top.end.x as f32);
+    fn check_sidedef_non_vertical_line_bounds(&self, line: &SdlLine) {
+        if line.start.x < 0 || line.start.x >= SCREEN_WIDTH as i32 {
+            panic!("Invalid line start x: {}", line.start.x);
+        }
 
-    let mut vis_planes = SidedefVisPlanes::new(floor_texture_hash, ceiling_texture_hash);
+        if line.end.x < 0 || line.end.x >= SCREEN_WIDTH as i32 {
+            panic!("Invalid line end x: {}", line.end.x);
+        }
+    }
 
-    // Does the wall from from floor to ceiling?
-    let is_full_height_wall = !is_lower_wall && !is_upper_wall && !is_whole_sidedef;
+    fn occlude_vertical_line(&mut self, x: i16) {
+        self.hor_ocl[x as usize] = true;
+        self.floor_ver_ocl[x as usize] = SCREEN_HEIGHT as i16 / 2;
+        self.ceiling_ver_ocl[x as usize] = SCREEN_HEIGHT as i16 / 2;
+    }
 
-    for x in bottom.start.x as i16..bottom.end.x as i16 + 1 {
-        if !context.hor_ocl[x as usize] {
-            // Calculate top and bottom of the line
-            let bottom_y =
-                (bottom.start.y as f32 + (x as f32 - bottom.start.x as f32) * bottom_delta) as i16;
-            let top_y = (top.start.y as f32 + (x as f32 - top.start.x as f32) * top_delta) as i16;
+    // Process a part of a sidedef.
+    // This may involve drawing it, but might also involte processing occlusions and visplanes.
+    fn process_sidedef(
+        &mut self,
+        bottom: &SdlLine,
+        top: &SdlLine,
+        _wall_texture: &str,
+        floor_texture_hash: i16,
+        ceiling_texture_hash: i16,
+        is_whole_sidedef: bool, // For occlusion & visplane processing
+        is_lower_wall: bool,    // For portals: the rendered piece of wall
+        is_upper_wall: bool,    // For portals: the rendered piece of wall
+    ) {
+        // Do some sanity checks
+        if bottom.start.x != top.start.x || bottom.end.x != top.end.x {
+            panic!(
+                "Wall start not vertical: {} vs {} or {} vs {}",
+                &bottom.start.x, &top.start.x, &bottom.end.x, &top.end.x,
+            );
+        }
 
-            // Is the line occluded?
-            let floor_ver_ocl = context.floor_ver_ocl[x as usize];
-            let ceiling_ver_ocl = context.ceiling_ver_ocl[x as usize];
+        self.check_sidedef_non_vertical_line_bounds(&bottom);
+        self.check_sidedef_non_vertical_line_bounds(&top);
 
-            // Clip to non-occluded region (if any)
-            let mut clipped_bottom_y = min(floor_ver_ocl, bottom_y);
-            let mut clipped_top_y = max(ceiling_ver_ocl, top_y);
+        // Loop from the left x to the right x, calculating the y screen coordinates
+        // for the bottom and top.
+        let bottom_delta = (bottom.start.y as f32 - bottom.end.y as f32)
+            / (bottom.start.x as f32 - bottom.end.x as f32);
+        let top_delta =
+            (top.start.y as f32 - top.end.y as f32) / (top.start.x as f32 - top.end.x as f32);
 
-            clipped_bottom_y = min(SCREEN_HEIGHT as i16 - 1, clipped_bottom_y);
-            clipped_top_y = max(0, clipped_top_y);
+        let mut sidedef_vis_planes =
+            SidedefVisPlanes::new(floor_texture_hash, ceiling_texture_hash);
 
-            let in_ver_clipped_area = clipped_bottom_y > clipped_top_y;
+        // Does the wall from from floor to ceiling?
+        let is_full_height_wall = !is_lower_wall && !is_upper_wall && !is_whole_sidedef;
 
-            // The line isn't occluded. Draw it.
+        for x in bottom.start.x as i16..bottom.end.x as i16 + 1 {
+            if !self.hor_ocl[x as usize] {
+                // Calculate top and bottom of the line
+                let bottom_y = (bottom.start.y as f32
+                    + (x as f32 - bottom.start.x as f32) * bottom_delta)
+                    as i16;
+                let top_y =
+                    (top.start.y as f32 + (x as f32 - top.start.x as f32) * top_delta) as i16;
 
-            // Draw the vertical line unless it's transparent
-            // The middle wall isn't rendered, it's only used to create visplanes.
-            if !is_whole_sidedef && in_ver_clipped_area {
-                game.canvas
-                    .draw_line(
-                        Point::new(x as i32, clipped_bottom_y as i32),
-                        Point::new(x as i32, clipped_top_y as i32),
-                    )
-                    .unwrap();
-            }
+                // Is the line occluded?
+                let floor_ver_ocl = self.floor_ver_ocl[x as usize];
+                let ceiling_ver_ocl = self.ceiling_ver_ocl[x as usize];
 
-            if in_ver_clipped_area && (is_full_height_wall || is_whole_sidedef) {
-                let mut visplane_added = false;
-                // Process bottom visplane
-                if clipped_bottom_y < floor_ver_ocl {
-                    if clipped_bottom_y != SCREEN_HEIGHT as i16 - 1 {
-                        vis_planes.add_bottom_point(x, clipped_bottom_y, floor_ver_ocl);
-                        visplane_added = true;
+                // Clip to non-occluded region (if any)
+                let mut clipped_bottom_y = min(floor_ver_ocl, bottom_y);
+                let mut clipped_top_y = max(ceiling_ver_ocl, top_y);
+
+                clipped_bottom_y = min(SCREEN_HEIGHT as i16 - 1, clipped_bottom_y);
+                clipped_top_y = max(0, clipped_top_y);
+
+                let in_ver_clipped_area = clipped_bottom_y > clipped_top_y;
+
+                // The line isn't occluded. Draw it.
+
+                // Draw the vertical line unless it's transparent
+                // The middle wall isn't rendered, it's only used to create visplanes.
+                if !is_whole_sidedef && in_ver_clipped_area {
+                    let mut points: Vec<Point> =
+                        Vec::with_capacity(clipped_bottom_y as usize - clipped_top_y as usize + 1);
+                    for y in clipped_top_y..clipped_bottom_y + 1 {
+                        let p = Point::new(x as i32, y as i32);
+                        points.push(p);
+                    }
+                    self.canvas.draw_points(&points[..]).unwrap();
+                }
+
+                if in_ver_clipped_area && (is_full_height_wall || is_whole_sidedef) {
+                    let mut visplane_added = false;
+                    // Process bottom visplane
+                    if clipped_bottom_y < floor_ver_ocl {
+                        if clipped_bottom_y != SCREEN_HEIGHT as i16 - 1 {
+                            sidedef_vis_planes.add_bottom_point(x, clipped_bottom_y, floor_ver_ocl);
+                            visplane_added = true;
+                        }
+                    }
+
+                    if clipped_top_y > ceiling_ver_ocl {
+                        if clipped_top_y != -1 {
+                            sidedef_vis_planes.add_top_point(x, ceiling_ver_ocl, clipped_top_y);
+                            visplane_added = true;
+                        }
+                    }
+
+                    if !visplane_added {
+                        // Line is occluded, flush visplanes
+                        sidedef_vis_planes.flush(self);
+                    }
+                } else if !in_ver_clipped_area
+                    && (is_full_height_wall || is_whole_sidedef)
+                    && floor_ver_ocl > ceiling_ver_ocl
+                {
+                    // The sidedef is occluded. However, there is still is a vertical
+                    // unoccluded gap. Fill it with the floor/ceiling texture belonging to
+                    // the sidedef. This is rare, but happens e.g. in doom1 e1m1 when in
+                    // the hidden ahrea going down the stairs to the outside area.
+
+                    if bottom_y <= ceiling_ver_ocl {
+                        sidedef_vis_planes.add_bottom_point(x, ceiling_ver_ocl, floor_ver_ocl);
+
+                        // Occlude the entire vertical line
+                        self.occlude_vertical_line(x);
+                    }
+
+                    if top_y >= floor_ver_ocl {
+                        sidedef_vis_planes.add_top_point(x, ceiling_ver_ocl, floor_ver_ocl);
+
+                        // Occlude the entire vertical line
+                        self.occlude_vertical_line(x);
                     }
                 }
 
-                if clipped_top_y > ceiling_ver_ocl {
-                    if clipped_top_y != -1 {
-                        vis_planes.add_top_point(x, ceiling_ver_ocl, clipped_top_y);
-                        visplane_added = true;
-                    }
+                if in_ver_clipped_area && is_whole_sidedef {
+                    self.floor_ver_ocl[x as usize] = clipped_bottom_y;
+                    self.ceiling_ver_ocl[x as usize] = clipped_top_y;
                 }
 
-                if !visplane_added {
-                    // Line is occluded, flush visplanes
-                    vis_planes.flush(context);
-                }
-            } else if !in_ver_clipped_area
-                && (is_full_height_wall || is_whole_sidedef)
-                && floor_ver_ocl > ceiling_ver_ocl
-            {
-                // The sidedef is occluded. However, there is still is a vertical
-                // unoccluded gap. Fill it with the floor/ceiling texture belonging to
-                // the sidedef. This is rare, but happens e.g. in doom1 e1m1 when in
-                // the hidden ahrea going down the stairs to the outside area.
-
-                if bottom_y <= ceiling_ver_ocl {
-                    vis_planes.add_bottom_point(x, ceiling_ver_ocl, floor_ver_ocl);
-
-                    // Occlude the entire vertical line
-                    context.occlude_vertical_line(x);
+                // Update vertical occlusions
+                if in_ver_clipped_area && is_lower_wall {
+                    self.floor_ver_ocl[x as usize] = clipped_top_y;
                 }
 
-                if top_y >= floor_ver_ocl {
-                    vis_planes.add_top_point(x, ceiling_ver_ocl, floor_ver_ocl);
-
-                    // Occlude the entire vertical line
-                    context.occlude_vertical_line(x);
+                if in_ver_clipped_area && is_upper_wall {
+                    self.ceiling_ver_ocl[x as usize] = clipped_bottom_y;
                 }
+            } else {
+                // Line is occluded, flush visplanes
+                sidedef_vis_planes.flush(self);
             }
 
-            if in_ver_clipped_area && is_whole_sidedef {
-                context.floor_ver_ocl[x as usize] = clipped_bottom_y;
-                context.ceiling_ver_ocl[x as usize] = clipped_top_y;
+            if is_full_height_wall {
+                // A vertical line occludes everything behind it
+                self.occlude_vertical_line(x);
             }
+        }
 
-            // Update vertical occlusions
-            if in_ver_clipped_area && is_lower_wall {
-                context.floor_ver_ocl[x as usize] = clipped_top_y;
-            }
+        sidedef_vis_planes.flush(self);
+    }
 
-            if in_ver_clipped_area && is_upper_wall {
-                context.ceiling_ver_ocl[x as usize] = clipped_bottom_y;
-            }
+    // Draw a seg
+    fn render_seg(&mut self, seg: &Seg) {
+        // Get the linedef
+        let linedef = &seg.linedef;
+
+        // Get the sidedef(s)
+        let (opt_front_sidedef, opt_back_sidedef) = if seg.direction {
+            (&linedef.back_sidedef, &linedef.front_sidedef)
         } else {
-            // Line is occluded, flush visplanes
-            vis_planes.flush(context);
+            (&linedef.front_sidedef, &linedef.back_sidedef)
+        };
+
+        // Get the front sector (the one we're facing)
+        let front_sidedef = match opt_front_sidedef {
+            Some(s) => s,
+            None => {
+                // If there is no sidedef, then there is no wall
+                return;
+            }
+        };
+
+        let front_sector = &front_sidedef.sector;
+
+        // Get the floor and ceiling height from the front sector
+        let floor_height = front_sector.floor_height as f32;
+        let ceiling_height = front_sector.ceiling_height as f32;
+
+        // For portals, get the bottom and top heights by looking at the back
+        // sector.
+        let (opt_portal_bottom_height, opt_portal_top_height) = match opt_back_sidedef {
+            Some(back_sidedef) => {
+                let back_sector = &back_sidedef.sector;
+
+                let opt_portal_bottom_height =
+                    if back_sector.floor_height > front_sector.floor_height {
+                        Some(back_sector.floor_height as f32)
+                    } else {
+                        None
+                    };
+
+                let opt_portal_top_height =
+                    if back_sector.ceiling_height < front_sector.ceiling_height {
+                        Some(back_sector.ceiling_height as f32)
+                    } else {
+                        None
+                    };
+
+                (opt_portal_bottom_height, opt_portal_top_height)
+            }
+            None => (None, None),
+        };
+
+        let is_two_sided = linedef.flags & Flags::TWOSIDED != 0;
+
+        // Transform the seg so that the player position and angle is transformed
+        // away.
+
+        let moved_start = &*seg.start_vertex - &self.player.position;
+        let moved_end = &*seg.end_vertex - &self.player.position;
+
+        let start = moved_start.rotate(-self.player.angle);
+        let end = moved_end.rotate(-self.player.angle);
+
+        // The coordinates of line are like this:
+        // y
+        // ^
+        // |
+        //  -> x
+        let line = Line::new(&start, &end);
+
+        let clipped_line = match clip_to_viewport(&line) {
+            Some(clipped_line) => clipped_line,
+            None => {
+                return;
+            }
+        };
+
+        if clipped_line.start.x < -0.01 {
+            panic!(
+                "Clipped line x < -0.01: {:?} player: {:?}",
+                &clipped_line.start.x, &self.player.position
+            );
         }
 
-        if is_full_height_wall {
-            // A vertical line occludes everything behind it
-            context.occlude_vertical_line(x);
-        }
-    }
+        // Set line color
+        self.canvas
+            .set_draw_color(WALL_COLORS[seg.id as usize % WALL_COLORS.len()]);
 
-    vis_planes.flush(context);
-}
+        // Draw the non-vertial lines for all parts of the wall
+        let player_height = &self.player.floor_height + PLAYER_HEIGHT;
 
-// Draw a seg
-fn render_seg(game: &mut Game, context: &mut Context, seg: &Seg) {
-    // Get the linedef
-    let linedef = &seg.linedef;
+        // Draw the floor & ceiling lines
+        let floor = make_sidedef_non_vertical_line(&clipped_line, floor_height - player_height);
 
-    // Get the sidedef(s)
-    let (opt_front_sidedef, opt_back_sidedef) = if seg.direction {
-        (&linedef.back_sidedef, &linedef.front_sidedef)
-    } else {
-        (&linedef.front_sidedef, &linedef.back_sidedef)
-    };
-
-    // Get the front sector (the one we're facing)
-    let front_sector = match opt_front_sidedef {
-        Some(s) => &s.sector,
-        None => {
-            // If there is no sidedef, then there is no wall
+        // We are facing the non-rendered side of the segment.
+        if floor.start.x > floor.end.x {
             return;
         }
-    };
 
-    // Get the floor and ceiling height from the front sector
-    let floor_height = front_sector.floor_height as f32;
-    let ceiling_height = front_sector.ceiling_height as f32;
+        let ceiling = make_sidedef_non_vertical_line(&clipped_line, ceiling_height - player_height);
 
-    // For portals, get the bottom and top heights by looking at the back
-    // sector.
-    let (opt_portal_bottom_height, opt_portal_top_height) = match opt_back_sidedef {
-        Some(back_sidedef) => {
-            let back_sector = &back_sidedef.sector;
+        // portal_bottom is the optional top of the lower texture
+        let portal_bottom = if let Some(portal_bottom_height) = opt_portal_bottom_height {
+            Some(make_sidedef_non_vertical_line(
+                &clipped_line,
+                portal_bottom_height - player_height,
+            ))
+        } else {
+            None
+        };
 
-            let opt_portal_bottom_height = if back_sector.floor_height > front_sector.floor_height {
-                Some(back_sector.floor_height as f32)
-            } else {
-                None
-            };
+        // portal_top is the optional bottom of the upper texture
+        let portal_top = if let Some(portal_top_height) = opt_portal_top_height {
+            Some(make_sidedef_non_vertical_line(
+                &clipped_line,
+                portal_top_height - player_height,
+            ))
+        } else {
+            None
+        };
 
-            let opt_portal_top_height = if back_sector.ceiling_height < front_sector.ceiling_height
-            {
-                Some(back_sector.ceiling_height as f32)
-            } else {
-                None
-            };
+        // We now have all the non-vertical lines, draw the walls in between them.
+        if !is_two_sided {
+            // Draw a solid wall's middle texture, floor to ceiling
 
-            (opt_portal_bottom_height, opt_portal_top_height)
-        }
-        None => (None, None),
-    };
-
-    let is_two_sided = linedef.flags & Flags::TWOSIDED != 0;
-
-    // Transform the seg so that the player position and angle is transformed
-    // away.
-
-    let moved_start = &*seg.start_vertex - &game.player.position;
-    let moved_end = &*seg.end_vertex - &game.player.position;
-
-    let start = moved_start.rotate(-game.player.angle);
-    let end = moved_end.rotate(-game.player.angle);
-
-    // The coordinates of line are like this:
-    // y
-    // ^
-    // |
-    //  -> x
-    let line = Line::new(&start, &end);
-
-    let clipped_line = match clip_to_viewport(&line) {
-        Some(clipped_line) => clipped_line,
-        None => {
-            return;
-        }
-    };
-
-    if clipped_line.start.x < -0.01 {
-        panic!(
-            "Clipped line x < -0.01: {:?} player: {:?}",
-            &clipped_line.start.x, &game.player.position
-        );
-    }
-
-    // Set line color
-    game.canvas
-        .set_draw_color(WALL_COLORS[seg.id as usize % WALL_COLORS.len()]);
-
-    // Draw the non-vertial lines for all parts of the wall
-    let player_height = &game.player_floor_height + PLAYER_HEIGHT;
-
-    // Draw the floor & ceiling lines
-    let floor = make_sidedef_non_vertical_line(&clipped_line, floor_height - player_height);
-
-    // We are facing the non-rendered side of the segment.
-    if floor.start.x > floor.end.x {
-        return;
-    }
-
-    let ceiling = make_sidedef_non_vertical_line(&clipped_line, ceiling_height - player_height);
-
-    // portal_bottom is the optional top of the lower texture
-    let portal_bottom = if let Some(portal_bottom_height) = opt_portal_bottom_height {
-        Some(make_sidedef_non_vertical_line(
-            &clipped_line,
-            portal_bottom_height - player_height,
-        ))
-    } else {
-        None
-    };
-
-    // portal_top is the optional bottom of the upper texture
-    let portal_top = if let Some(portal_top_height) = opt_portal_top_height {
-        Some(make_sidedef_non_vertical_line(
-            &clipped_line,
-            portal_top_height - player_height,
-        ))
-    } else {
-        None
-    };
-
-    // We now have all the non-vertical lines, draw the walls in between them.
-    if !is_two_sided {
-        // Draw a solid wall's middle texture, floor to ceiling
-
-        process_sidedef(
-            game,
-            context,
-            &floor,
-            &ceiling,
-            front_sector.floor_texture_hash,
-            front_sector.ceiling_texture_hash,
-            false,
-            false,
-            false,
-        );
-    } else {
-        // Draw a portal's lower and upper textures (if present)
-
-        // Process the portal's bounds without drawing it
-        process_sidedef(
-            game,
-            context,
-            &floor,
-            &ceiling,
-            front_sector.floor_texture_hash,
-            front_sector.ceiling_texture_hash,
-            true, // Only process occlusions and visplanes
-            false,
-            false,
-        );
-
-        // Process the lower wall
-        if let Some(portal_bottom) = portal_bottom.clone() {
-            process_sidedef(
-                game,
-                context,
+            self.process_sidedef(
                 &floor,
-                &portal_bottom,
-                front_sector.floor_texture_hash,
-                front_sector.ceiling_texture_hash,
-                false,
-                true,
-                false,
-            );
-        }
-
-        // Process the upper wall
-        if let Some(portal_top) = portal_top.clone() {
-            process_sidedef(
-                game,
-                context,
-                &portal_top,
                 &ceiling,
+                &front_sidedef.middle_texture,
                 front_sector.floor_texture_hash,
                 front_sector.ceiling_texture_hash,
                 false,
                 false,
-                true,
+                false,
             );
+        } else {
+            // Draw a portal's lower and upper textures (if present)
+
+            // Process the portal's bounds without drawing it
+            self.process_sidedef(
+                &floor,
+                &ceiling,
+                &front_sidedef.middle_texture,
+                front_sector.floor_texture_hash,
+                front_sector.ceiling_texture_hash,
+                true, // Only process occlusions and visplanes
+                false,
+                false,
+            );
+
+            // Process the lower wall
+            if let Some(portal_bottom) = portal_bottom.clone() {
+                self.process_sidedef(
+                    &floor,
+                    &portal_bottom,
+                    &front_sidedef.lower_texture,
+                    front_sector.floor_texture_hash,
+                    front_sector.ceiling_texture_hash,
+                    false,
+                    true,
+                    false,
+                );
+            }
+
+            // Process the upper wall
+            if let Some(portal_top) = portal_top.clone() {
+                self.process_sidedef(
+                    &portal_top,
+                    &ceiling,
+                    &front_sidedef.upper_texture,
+                    front_sector.floor_texture_hash,
+                    front_sector.ceiling_texture_hash,
+                    false,
+                    false,
+                    true,
+                );
+            }
         }
     }
-}
 
-// Render all segs in a subsector
-fn render_subsector(game: &mut Game, context: &mut Context, subsector: &SubSector) {
-    for seg in &subsector.segs {
-        render_seg(game, context, &seg);
-    }
-}
-
-// Recurse through the BSP tree, drawing the subsector leaves
-// The BSP algorithm guarantees that the subsectors are visited front to back.
-fn render_node(game: &mut Game, context: &mut Context, node: &Rc<Node>) {
-    let v1 = Vertex::new(node.x, node.y);
-    let v2 = &v1 + &Vertex::new(node.dx, node.dy);
-
-    let is_left = game.player.position.is_left_of_line(&Line::new(&v1, &v2));
-
-    let (front_child, back_child) = if is_left {
-        (&node.left_child, &node.right_child)
-    } else {
-        (&node.right_child, &node.left_child)
-    };
-
-    match front_child {
-        NodeChild::Node(node) => {
-            render_node(game, context, &node);
-        }
-        NodeChild::SubSector(subsector) => {
-            render_subsector(game, context, &subsector);
+    // Render all segs in a subsector
+    fn render_subsector(&mut self, subsector: &SubSector) {
+        for seg in &subsector.segs {
+            self.render_seg(&seg);
         }
     }
 
-    // TODO: Use the bounding box and only recurse into the back of the split
-    // if the player view intersects with it.
-    match back_child {
-        NodeChild::Node(node) => {
-            render_node(game, context, &node);
+    // Recurse through the BSP tree, drawing the subsector leaves
+    // The BSP algorithm guarantees that the subsectors are visited front to back.
+    fn render_node(&mut self, node: &Rc<Node>) {
+        let v1 = Vertex::new(node.x, node.y);
+        let v2 = &v1 + &Vertex::new(node.dx, node.dy);
+
+        let is_left = self.player.position.is_left_of_line(&Line::new(&v1, &v2));
+
+        let (front_child, back_child) = if is_left {
+            (&node.left_child, &node.right_child)
+        } else {
+            (&node.right_child, &node.left_child)
+        };
+
+        match front_child {
+            NodeChild::Node(node) => {
+                self.render_node(&node);
+            }
+            NodeChild::SubSector(subsector) => {
+                self.render_subsector(&subsector);
+            }
         }
-        NodeChild::SubSector(subsector) => {
-            render_subsector(game, context, &subsector);
+
+        // TODO: Use the bounding box and only recurse into the back of the split
+        // if the player view intersects with it.
+        match back_child {
+            NodeChild::Node(node) => {
+                self.render_node(&node);
+            }
+            NodeChild::SubSector(subsector) => {
+                self.render_subsector(&subsector);
+            }
         }
     }
-}
 
-pub fn render_map(game: &mut Game) {
-    let mut context = Context {
-        hor_ocl: [false; SCREEN_WIDTH as usize],
-        floor_ver_ocl: [SCREEN_HEIGHT as i16; SCREEN_WIDTH as usize],
-        ceiling_ver_ocl: [-1; SCREEN_WIDTH as usize],
-        visplanes: Vec::new(),
-    };
+    pub fn render(&mut self) {
+        let root_node = Rc::clone(&self.map.root_node);
+        self.render_node(&root_node);
 
-    let root_node = Rc::clone(&game.map.root_node);
-    render_node(game, &mut context, &root_node);
-
-    draw_visplanes(game, &context);
+        self.draw_visplanes();
+    }
 }
