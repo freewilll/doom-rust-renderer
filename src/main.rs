@@ -1,15 +1,20 @@
 use clap::{arg, command, Parser};
+use std::rc::Rc;
+use std::{fs::metadata, fs::File, io::Read};
 
 mod game;
 mod geometry;
 mod linedefs;
 mod map;
 mod nodes;
+mod palette;
+mod pictures;
 mod renderer;
 mod sectors;
 mod segs;
 mod sidedefs;
 mod subsectors;
+mod textures;
 mod things;
 mod vertexes;
 mod wad;
@@ -17,8 +22,6 @@ mod wad;
 use game::Game;
 use map::Map;
 use wad::WadFile;
-
-use std::{fs::metadata, fs::File, io::Read};
 
 // Read a file into a u8 vector
 fn read_file(filename: &str) -> Vec<u8> {
@@ -50,10 +53,10 @@ struct Args {
 pub fn main() {
     let args = Args::parse();
 
-    let file_data = read_file(&args.wad);
-    let wad_file = WadFile::new(&file_data);
+    let file = read_file(&args.wad);
+    let wad_file = Rc::new(WadFile::new(file));
     let map = Map::new(&wad_file, args.map.as_str());
 
-    let mut game = Game::new(map, args.turbo);
+    let mut game = Game::new(wad_file, map, args.turbo);
     game.main_loop();
 }

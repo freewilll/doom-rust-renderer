@@ -1,15 +1,3 @@
-use crate::geometry::Line;
-use crate::map::Map;
-use crate::nodes::NodeChild;
-use crate::renderer::render_map;
-use crate::things::{get_thing_by_type, ThingTypes};
-use crate::vertexes::Vertex;
-use std::rc::Rc;
-
-use std::collections::HashSet;
-use std::f32::consts::PI;
-use std::time::Duration;
-
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
@@ -17,6 +5,21 @@ use sdl2::rect::Point;
 use sdl2::render::Canvas;
 use sdl2::video::Window;
 use sdl2::Sdl;
+use std::collections::HashSet;
+use std::f32::consts::PI;
+use std::rc::Rc;
+use std::time::Duration;
+
+use crate::geometry::Line;
+use crate::map::Map;
+use crate::nodes::NodeChild;
+use crate::palette::Palette;
+use crate::pictures::Pictures;
+use crate::renderer::render_map;
+use crate::textures::Textures;
+use crate::things::{get_thing_by_type, ThingTypes};
+use crate::vertexes::Vertex;
+use crate::wad::WadFile;
 
 const TITLE: &str = "A doom renderer in Rust";
 pub const SCREEN_WIDTH: u32 = 1024;
@@ -32,16 +35,20 @@ pub struct Player {
 pub struct Game {
     sdl_context: Sdl,
     pub canvas: Canvas<Window>,
+    pub wad_file: Rc<WadFile>,
     pub map: Map,
+    pub palette: Palette,
     pub player: Player,
     pub pressed_keys: HashSet<Keycode>,
     pub viewing_map: i8,          // 0 = 3D, 1 = 3d + map, 2 = map
     pub player_floor_height: f32, // Set to the height of the sector the player is in
     pub turbo: f32,               // Percentage speed increase
+    pub pictures: Pictures,       // Pictures (aka patches)
+    pub textures: Textures,
 }
 
 impl Game {
-    pub fn new(map: Map, turbo: i16) -> Game {
+    pub fn new(wad_file: Rc<WadFile>, map: Map, turbo: i16) -> Game {
         let sdl_context = sdl2::init().unwrap();
         let video_subsystem = sdl_context.video().unwrap();
 
@@ -59,15 +66,23 @@ impl Game {
             angle: player1_start.angle,
         };
 
+        let palette = Palette::new(&wad_file);
+        let pictures = Pictures::new(&wad_file);
+        let textures = Textures::new(&wad_file);
+
         let mut game = Game {
-            sdl_context: sdl_context,
-            canvas: canvas,
-            map: map,
-            player: player,
+            sdl_context,
+            canvas,
+            wad_file: Rc::clone(&wad_file),
+            map,
+            player,
             pressed_keys: HashSet::new(),
             viewing_map: 0,
             player_floor_height: 0.0,
             turbo: (turbo as f32) / 100.0,
+            palette,
+            pictures,
+            textures,
         };
 
         // Set initial player height

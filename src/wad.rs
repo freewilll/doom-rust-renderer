@@ -69,16 +69,24 @@ pub struct DirEntry {
     pub size: u32,    // Lump size
 }
 
+// Names of wall patches + offsets into the WAD file
+#[derive(Debug)]
+#[allow(dead_code)]
+pub struct Pname {
+    pub name: String,            // Lump name
+    pub wad_offset: Option<u32>, // Offset in WAD file (None if the lump doesn't exist)
+}
+
 // A loaded WAD file
-pub struct WadFile<'a> {
-    pub file: &'a [u8],
+pub struct WadFile {
+    pub file: Vec<u8>,
     pub header: Header,
     dirs: Vec<DirEntry>,
 }
 
-impl WadFile<'_> {
+impl WadFile {
     // Load a WAD file
-    pub fn new(file: &[u8]) -> WadFile {
+    pub fn new(file: Vec<u8>) -> WadFile {
         let header = Header::read(&file);
 
         // PWAD handling not implemented
@@ -149,6 +157,16 @@ impl WadFile<'_> {
         }
     }
 
+    pub fn get_dir_entry(&self, name: &str) -> Result<&DirEntry, String> {
+        for (i, dir_entry) in self.dirs.iter().enumerate() {
+            if dir_entry.name == name.to_ascii_uppercase() {
+                return Ok(&self.dirs[i]);
+            }
+        }
+
+        Err(format!("Could not find lump {}", &name))
+    }
+
     // Get lump for a map
     pub fn get_dir_entry_for_map_lump(&self, map_name: &str, lump_name: MapLumpName) -> &DirEntry {
         for (i, dir_entry) in self.dirs.iter().enumerate() {
@@ -170,5 +188,9 @@ impl WadFile<'_> {
 
     pub fn read_f32_from_i16(&self, offset: usize) -> f32 {
         i16::from_le_bytes(self.file[offset..offset + 2].try_into().unwrap()) as f32
+    }
+
+    pub fn read_u32(&self, offset: usize) -> u32 {
+        u32::from_le_bytes(self.file[offset..offset + 4].try_into().unwrap())
     }
 }
