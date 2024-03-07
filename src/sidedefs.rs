@@ -5,6 +5,7 @@ use std::rc::Rc;
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct Sidedef {
+    pub id: i16,
     pub x_offset: f32,
     pub y_offset: f32,
     pub upper_texture: String,
@@ -26,6 +27,7 @@ pub fn load_sidedefs(
         let offset = dir_entry.offset as usize + i * 30;
 
         let sidedef = Sidedef {
+            id: i as i16,
             x_offset: wad_file.read_f32_from_i16(offset),
             y_offset: wad_file.read_f32_from_i16(offset + 2),
             upper_texture: wad_file.read_lump_name(offset + 4),

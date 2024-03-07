@@ -82,4 +82,8 @@ impl Line {
 
         return Ok(Vertex::new(px, py));
     }
+
+    pub fn length(&self) -> f32 {
+        ((self.start.x - self.end.x).powi(2) + (self.start.y - self.end.y).powi(2)).sqrt()
+    }
 }

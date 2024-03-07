@@ -28,8 +28,12 @@ impl Vertex {
     }
 
     // Are we left or on the line ?
-    pub fn is_left_of_line(&self, other: &Line) -> bool {
-        (&(self - &other.start)).cross_product(&(&other.end - &other.start)) <= 0.0
+    pub fn is_left_of_line(&self, line: &Line) -> bool {
+        (&(self - &line.start)).cross_product(&(&line.end - &line.start)) <= 0.0
+    }
+
+    pub fn distance_to(&self, other: &Vertex) -> f32 {
+        ((self.x - other.x).powi(2) + (self.y - other.y).powi(2)).sqrt()
     }
 }
 

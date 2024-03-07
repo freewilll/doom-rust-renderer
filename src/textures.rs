@@ -43,9 +43,9 @@ pub struct TextureDefinition {
 // A Texture is a loaded texture, with its pixels populated from the patches
 #[allow(dead_code)]
 pub struct Texture {
-    width: i16,
-    height: i16,
-    pixels: Vec<Vec<u8>>, // Grid of colormap indexes
+    pub width: i16,
+    pub height: i16,
+    pub pixels: Vec<Vec<u8>>, // Grid of colormap indexes
 }
 
 // A struct to handle lazy loaded textures

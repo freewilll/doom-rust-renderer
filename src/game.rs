@@ -33,22 +33,63 @@ pub struct Player {
     pub angle: f32,
 }
 
+pub const AVG_TICKS_MAXSAMPLES: u32 = 16;
+
+// Keep track of a rolling average of frame render times.
+// A "tick" is actually a f32 time interval in seconds
+struct AvgTicksCounter {
+    index: usize,
+    sum: f32,
+    list: Vec<f32>, // A circular buffer of length AVG_TICKS_MAXSAMPLES
+}
+
+impl AvgTicksCounter {
+    fn new() -> AvgTicksCounter {
+        let mut list = vec![0.0; AVG_TICKS_MAXSAMPLES as usize];
+        list.iter_mut().for_each(|x| *x = 0.0);
+        AvgTicksCounter {
+            index: 0,
+            sum: 0.0,
+            list: list,
+        }
+    }
+
+    fn get_avg_ticks(&mut self, new_tick: f32) -> f32 {
+        self.sum -= self.list[self.index];
+        self.sum += new_tick;
+        self.list[self.index] = new_tick;
+
+        self.index += 1;
+        if self.index == AVG_TICKS_MAXSAMPLES as usize {
+            self.index = 0;
+        }
+
+        return self.sum as f32 / AVG_TICKS_MAXSAMPLES as f32;
+    }
+
+    fn get_fps(&mut self, new_tick: f32) -> f32 {
+        1.0 / self.get_avg_ticks(new_tick)
+    }
+}
+
+#[allow(dead_code)]
 pub struct Game {
     sdl_context: Sdl,
     pub canvas: Canvas<Window>,
-    pub wad_file: Rc<WadFile>,
-    pub map: Map,
+    avg_ticks_counter: AvgTicksCounter,
+    map: Map,
     pub palette: Palette,
-    pub player: Player,
-    pub pressed_keys: HashSet<Keycode>,
-    pub viewing_map: i8,    // 0 = 3D, 1 = 3d + map, 2 = map
-    pub turbo: f32,         // Percentage speed increase
-    pub pictures: Pictures, // Pictures (aka patches)
-    pub textures: Textures,
+    player: Player,
+    pressed_keys: HashSet<Keycode>,
+    viewing_map: i8,    // 0 = 3D, 1 = 3d + map, 2 = map
+    turbo: f32,         // Percentage speed increase
+    pictures: Pictures, // Pictures (aka patches)
+    textures: Textures,
+    print_fps: bool, // Show frames per second
 }
 
 impl Game {
-    pub fn new(wad_file: Rc<WadFile>, map: Map, turbo: i16) -> Game {
+    pub fn new(wad_file: Rc<WadFile>, map: Map, turbo: i16, print_fps: bool) -> Game {
         let sdl_context = sdl2::init().unwrap();
         let video_subsystem = sdl_context.video().unwrap();
 
@@ -79,7 +120,7 @@ impl Game {
         let mut game = Game {
             sdl_context,
             canvas,
-            wad_file: Rc::clone(&wad_file),
+            avg_ticks_counter: AvgTicksCounter::new(),
             map,
             player,
             pressed_keys: HashSet::new(),
@@ -88,6 +129,7 @@ impl Game {
             palette,
             pictures,
             textures,
+            print_fps,
         };
 
         // Set initial player height
@@ -276,7 +318,14 @@ impl Game {
             self.canvas.clear();
 
             if self.viewing_map < 2 {
-                Renderer::new(&mut self.canvas, &self.map, &self.player).render();
+                Renderer::new(
+                    &mut self.canvas,
+                    &self.map,
+                    &mut self.textures,
+                    &mut self.palette,
+                    &self.player,
+                )
+                .render();
             }
 
             if self.viewing_map > 0 {
@@ -325,6 +374,11 @@ impl Game {
             }
 
             let elapsed = t0.elapsed();
+            let fps = self.avg_ticks_counter.get_fps(elapsed.as_secs_f32());
+            if self.print_fps {
+                println!("FPS {}", fps);
+            }
+
             self.process_down_keys(&elapsed);
         }
     }
