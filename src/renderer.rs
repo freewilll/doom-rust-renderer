@@ -1,7 +1,5 @@
 use sdl2::pixels::Color;
 use sdl2::rect::Point;
-use sdl2::render::Canvas;
-use sdl2::video::Window;
 use std::cmp::{max, min};
 use std::rc::Rc;
 
@@ -45,7 +43,7 @@ const VISPLANE_COLORS: &'static [Color] = &[
 ];
 
 pub struct Renderer<'a> {
-    canvas: &'a mut Canvas<Window>,
+    pixels: &'a mut Pixels,
     map: &'a Map,
     textures: &'a mut Textures,
     palette: &'a mut Palette,
@@ -99,8 +97,52 @@ struct ClippedLine {
     start_offset: f32, // The amount the line was clipped by at the start/left end
 }
 
+pub struct Pixels {
+    pub pixels: Vec<u8>, // The width * height pixels int the frame
+}
+
+impl Pixels {
+    pub fn new() -> Pixels {
+        Pixels {
+            pixels: vec![0; (SCREEN_WIDTH * SCREEN_HEIGHT * 3) as usize],
+        }
+    }
+
+    pub fn clear(&mut self) {
+        self.pixels.iter_mut().for_each(|x| *x = 0);
+    }
+
+    // Set a single pixel
+    pub fn set(&mut self, x: usize, y: usize, color: &Color) {
+        if x >= SCREEN_WIDTH as usize || y > SCREEN_HEIGHT as usize {
+            return;
+        }
+
+        self.pixels[3 * (y as usize * SCREEN_WIDTH as usize + x as usize) + 0] = color.r;
+        self.pixels[3 * (y as usize * SCREEN_WIDTH as usize + x as usize) + 1] = color.g;
+        self.pixels[3 * (y as usize * SCREEN_WIDTH as usize + x as usize) + 2] = color.b;
+    }
+
+    // Draw a vertical line
+    pub fn draw_vertical_line(&mut self, x: i32, top: i32, bottom: i32, color: &Color) {
+        if x <= 0 || x >= SCREEN_WIDTH as i32 {
+            return;
+        }
+
+        for y in top..bottom + 1 {
+            if y < 0 || y >= SCREEN_HEIGHT as i32 {
+                continue;
+            }
+
+            self.pixels[3 * (y as usize * SCREEN_WIDTH as usize + x as usize) + 0] = color.r;
+            self.pixels[3 * (y as usize * SCREEN_WIDTH as usize + x as usize) + 1] = color.g;
+            self.pixels[3 * (y as usize * SCREEN_WIDTH as usize + x as usize) + 2] = color.b;
+        }
+    }
+}
+
 // Transform a vertex in doom x-y coordinates to viewport coordinates.
-// PLayer:
+// Player:
 //    x
 //    |
 // <- y
@@ -321,7 +363,7 @@ impl SidedefVisPlanes {
     }
 }
 
-fn draw_visplane(canvas: &mut Canvas<Window>, visplane: &Visplane) {
+fn draw_visplane(pixels: &mut Pixels, visplane: &Visplane) {
     const DEBUG_DRAW_OUTLINE: bool = false;
 
     let solid_color = VISPLANE_COLORS[visplane.floor_texture_hash as usize % VISPLANE_COLORS.len()];
@@ -331,52 +373,39 @@ fn draw_visplane(canvas: &mut Canvas<Window>, visplane: &Visplane) {
         let top = visplane.top[x as usize];
         let bottom = visplane.bottom[x as usize];
 
-        let top_point = Point::new(x as i32, top as i32);
-        let bottom_point = Point::new(x as i32, bottom as i32);
-
-        canvas.set_draw_color(solid_color);
-        canvas.draw_line(top_point, bottom_point).unwrap();
-
-        if DEBUG_DRAW_OUTLINE {
-            canvas.set_draw_color(outline_color);
-            canvas
-                .draw_points([top_point, bottom_point].as_slice())
-                .unwrap();
-        }
+        pixels.draw_vertical_line(x as i32, top as i32, bottom as i32, &solid_color);
     }
 
     if DEBUG_DRAW_OUTLINE {
-        canvas.set_draw_color(outline_color);
-
         let left = visplane.left as i32;
         let right = visplane.right as i32;
 
-        canvas
-            .draw_line(
-                Point::new(left, visplane.bottom[left as usize] as i32),
-                Point::new(left, visplane.top[left as usize] as i32),
-            )
-            .unwrap();
+        pixels.draw_vertical_line(
+            left,
+            visplane.top[left as usize] as i32,
+            visplane.bottom[left as usize] as i32,
+            &outline_color,
+        );
 
-        canvas
-            .draw_line(
-                Point::new(right, visplane.bottom[right as usize] as i32),
-                Point::new(right, visplane.top[right as usize] as i32),
-            )
-            .unwrap();
+        pixels.draw_vertical_line(
+            right,
+            visplane.top[left as usize] as i32,
+            visplane.bottom[left as usize] as i32,
+            &outline_color,
+        );
     }
 }
 
 impl Renderer<'_> {
     pub fn new<'a>(
-        canvas: &'a mut Canvas<Window>,
+        pixels: &'a mut Pixels,
         map: &'a Map,
         textures: &'a mut Textures,
         palette: &'a mut Palette,
         player: &'a Player,
     ) -> Renderer<'a> {
         Renderer {
-            canvas,
+            pixels,
             map,
             textures,
             palette,
@@ -390,7 +419,7 @@ impl Renderer<'_> {
 
     fn draw_visplanes(&mut self) {
         for visplane in &self.vis_planes {
-            draw_visplane(&mut self.canvas, &visplane);
+            draw_visplane(&mut self.pixels, &visplane);
         }
     }
 
@@ -459,10 +488,7 @@ impl Renderer<'_> {
             ty = ty % texture.height;
 
             let color = self.palette.colors[texture.pixels[ty as usize][tx as usize] as usize];
-            self.canvas.set_draw_color(color);
-
-            let p = Point::new(x as i32, y as i32);
-            self.canvas.draw_point(p).unwrap();
+            self.pixels.set(x as usize, y as usize, &color);
         }
     }
 
@@ -546,16 +572,12 @@ impl Renderer<'_> {
                     match texture {
                         None => {
                             // Draw a missing texture as white
-                            self.canvas.set_draw_color(Color::RGB(255, 255, 255));
-
-                            let mut points: Vec<Point> = Vec::with_capacity(
-                                clipped_bottom_y as usize - clipped_top_y as usize + 1,
+                            self.pixels.draw_vertical_line(
+                                x.into(),
+                                clipped_top_y.into(),
+                                clipped_bottom_y.into(),
+                                &Color::RGB(255, 255, 255),
                             );
-                            for y in clipped_top_y..clipped_bottom_y + 1 {
-                                let p = Point::new(x as i32, y as i32);
-                                points.push(p);
-                            }
-                            self.canvas.draw_points(&points[..]).unwrap();
                         }
                         Some(ref texture) => {
                             self.render_vertical_texture_line(

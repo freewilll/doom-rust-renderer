@@ -1,8 +1,11 @@
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
+use sdl2::pixels::PixelFormatEnum;
 use sdl2::rect::Point;
+use sdl2::rect::Rect;
 use sdl2::render::Canvas;
+use sdl2::render::TextureCreator;
 use sdl2::video::Window;
 use sdl2::Sdl;
 use std::collections::HashSet;
@@ -15,7 +18,7 @@ use crate::map::Map;
 use crate::nodes::NodeChild;
 use crate::palette::Palette;
 use crate::pictures::Pictures;
-use crate::renderer::Renderer;
+use crate::renderer::{Pixels, Renderer};
 use crate::textures::Textures;
 use crate::things::{get_thing_by_type, ThingTypes};
 use crate::vertexes::Vertex;
@@ -81,7 +84,7 @@ pub struct Game {
     pub palette: Palette,
     player: Player,
     pressed_keys: HashSet<Keycode>,
-    viewing_map: i8,    // 0 = 3D, 1 = 3d + map, 2 = map
+    viewing_map: bool,  // Toggle the 2D map
     turbo: f32,         // Percentage speed increase
     pictures: Pictures, // Pictures (aka patches)
     textures: Textures,
@@ -124,7 +127,7 @@ impl Game {
             map,
             player,
             pressed_keys: HashSet::new(),
-            viewing_map: 0,
+            viewing_map: false,
             turbo: (turbo as f32) / 100.0,
             palette,
             pictures,
@@ -310,28 +313,46 @@ impl Game {
     }
 
     pub fn main_loop(&mut self) {
+        // Create the texture + pixels for the renderer
+        let texture_creator: TextureCreator<_> = self.canvas.texture_creator();
+        let mut texture = texture_creator
+            .create_texture_streaming(PixelFormatEnum::RGB24, SCREEN_WIDTH, SCREEN_HEIGHT)
+            .unwrap();
+        let mut pixels = Pixels::new();
+
         let mut event_pump = self.sdl_context.event_pump().unwrap();
         'running: loop {
             let t0 = Instant::now();
 
-            self.canvas.set_draw_color(Color::RGB(0, 0, 0));
-            self.canvas.clear();
+            if self.viewing_map {
+                self.canvas.set_draw_color(Color::RGB(0, 0, 0));
+                self.canvas.clear();
 
-            if self.viewing_map < 2 {
+                self.draw_map_linedefs();
+                self.draw_map_nodes();
+                self.draw_map_player();
+            } else {
+                pixels.clear();
+
                 Renderer::new(
-                    &mut self.canvas,
+                    &mut pixels,
                     &self.map,
                     &mut self.textures,
                     &mut self.palette,
                     &self.player,
                 )
                 .render();
-            }
 
-            if self.viewing_map > 0 {
-                self.draw_map_linedefs();
-                self.draw_map_nodes();
-                self.draw_map_player();
+                texture
+                    .with_lock(None, |buffer: &mut [u8], _pitch: usize| {
+                        buffer.copy_from_slice(pixels.pixels.as_ref());
+                    })
+                    .unwrap();
+
+                let screen_rect = Rect::new(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+                self.canvas
+                    .copy(&texture, screen_rect, screen_rect)
+                    .unwrap();
             }
 
             self.canvas.present();
@@ -352,7 +373,7 @@ impl Game {
                         keycode: Some(Keycode::Tab),
                         ..
                     } => {
-                        self.viewing_map = (self.viewing_map + 1) % 3;
+                        self.viewing_map = !self.viewing_map;
                     }
 
                     Event::KeyDown {
