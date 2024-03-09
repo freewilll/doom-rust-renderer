@@ -526,6 +526,12 @@ impl Renderer<'_> {
             );
         }
 
+        // Catch division by zero, which happens if we're looking at the wall from
+        // the side, dead on. In this case, there's nothing to see.
+        if bottom.start.x as i16 == bottom.end.x as i16 || top.start.x as i16 == top.end.x as i16 {
+            return;
+        }
+
         self.check_sidedef_non_vertical_line_bounds(&bottom);
         self.check_sidedef_non_vertical_line_bounds(&top);
 
