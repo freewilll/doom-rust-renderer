@@ -14,6 +14,7 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use crate::geometry::Line;
+use crate::linedefs::Flags;
 use crate::map::Map;
 use crate::nodes::NodeChild;
 use crate::palette::Palette;
@@ -161,6 +162,14 @@ impl Game {
         self.canvas.set_draw_color(Color::RGB(255, 255, 255));
 
         for linedef in &self.map.linedefs {
+            if linedef.flags & Flags::DONTDRAW > 0 {
+                continue;
+            } else if linedef.flags & Flags::TWOSIDED > 0 {
+                self.canvas.set_draw_color(Color::RGB(255, 255, 0));
+            } else {
+                self.canvas.set_draw_color(Color::RGB(255, 0, 0));
+            }
+
             let start_point = self.transform_vertex_to_point_for_map(&linedef.start_vertex);
             let end_point = self.transform_vertex_to_point_for_map(&linedef.end_vertex);
             self.canvas.draw_line(start_point, end_point).unwrap();
@@ -329,7 +338,6 @@ impl Game {
                 self.canvas.clear();
 
                 self.draw_map_linedefs();
-                self.draw_map_nodes();
                 self.draw_map_player();
             } else {
                 pixels.clear();
