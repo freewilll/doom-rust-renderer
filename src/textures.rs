@@ -145,7 +145,7 @@ impl Textures {
     pub fn get(&mut self, name: &str) -> Rc<Texture> {
         let definition: &mut TextureDefinition = self
             .definitions
-            .get_mut(name)
+            .get_mut(&name.to_ascii_uppercase())
             .unwrap_or_else(|| panic!("Unknown texture {}", &name));
 
         // Already loaded
@@ -240,7 +240,8 @@ impl Textures {
                 texture: None,
             };
 
-            self.definitions.insert(name, texture_definition);
+            self.definitions
+                .insert(name.to_ascii_uppercase(), texture_definition);
         }
     }
 }
