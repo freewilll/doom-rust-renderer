@@ -17,8 +17,9 @@ use crate::vertexes::Vertex;
 
 const PLAYER_HEIGHT: f32 = 56.0;
 
-// Length of the viewport from the player looking forward along the x axis
-const CAMERA_FOCUS: f32 = SCREEN_WIDTH as f32 / 2.0 as f32;
+// The game ran on 320x200 but ended up on monitors with squarepixels and  320x240
+// https://doomwiki.org/wiki/Aspect_ratio#:~:text=it%20was%20wide.-,Design%20of%20graphics,to%20this%20hardware%20video%20mode.
+pub const ASPECT_RATIO_CORRECTION: f32 = 200.0 / 240.0;
 
 // A couple of test colors used for easy visual development
 // From https://www.rapidtables.com/web/color/RGB_Color.html
@@ -156,7 +157,14 @@ fn perspective_transform(v: &Vertex, y: f32) -> Vertex {
     let x = v.y;
     let z = v.x;
 
-    Vertex::new(CAMERA_FOCUS * x / z, CAMERA_FOCUS * y / z)
+    // Do the perspetive transformation using a more broad screen then the
+    // actual screen. This is transformed back by the caller. The end result
+    // is everything being shown on the screen as it would have on the original
+    // VGA screens.
+    let game_screen_width: f32 = SCREEN_WIDTH as f32 / ASPECT_RATIO_CORRECTION;
+    let game_camera_focus: f32 = game_screen_width as f32 / 2.0 as f32;
+
+    Vertex::new(game_camera_focus * x / z, game_camera_focus * y / z)
 }
 
 fn clip_to_viewport(line: &Line) -> Option<ClippedLine> {
@@ -273,16 +281,23 @@ fn clip_to_viewport(line: &Line) -> Option<ClippedLine> {
 
 // Make the slanted non-vertical line for a sidedef.
 fn make_sidedef_non_vertical_line(line: &Line, height: f32) -> SdlLine {
-    let transformed_start = perspective_transform(&line.start, height);
-    let transformed_end = perspective_transform(&line.end, height);
+    let mut transformed_start = perspective_transform(&line.start, height);
+    let mut transformed_end = perspective_transform(&line.end, height);
+
+    // Convert the in-game coordinates that are broad into the more narrow
+    // screen x coordinates
+    transformed_start.x *= ASPECT_RATIO_CORRECTION;
+    transformed_end.x *= ASPECT_RATIO_CORRECTION;
+
+    let camera_focus = SCREEN_WIDTH as f32 / 2.0;
 
     let mut screen_start = Point::new(
-        ((CAMERA_FOCUS - &transformed_start.x) as i32).into(),
+        ((camera_focus - &transformed_start.x) as i32).into(),
         ((SCREEN_HEIGHT as f32 / 2.0 - &transformed_start.y - 1.0) as i32).into(),
     );
 
     let mut screen_end = Point::new(
-        ((-&transformed_end.x + CAMERA_FOCUS) as i32).into(),
+        ((-&transformed_end.x + camera_focus) as i32).into(),
         ((SCREEN_HEIGHT as f32 / 2.0 - &transformed_end.y - 1.0) as i32).into(),
     );
 
