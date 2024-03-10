@@ -829,6 +829,20 @@ impl Renderer<'_> {
                 }
             }
 
+            // Some two-sided outside walls have both a sky texture on both sides,
+            // yet have an upper texture on one side with a lower ceiling on the other.
+            // ignore this and don't draw the upper texture.
+            if let Some(portal_top_height) = opt_portal_top_height {
+                if let Some(back_sidedef) = opt_back_sidedef {
+                    let sky_on_both_sides = front_sidedef.sector.ceiling_texture.contains("SKY")
+                        && back_sidedef.sector.ceiling_texture.contains("SKY");
+
+                    if sky_on_both_sides && ceiling_height > portal_top_height {
+                        opt_portal_top_height = None;
+                    }
+                }
+            }
+
             // Process the portal's bounds without drawing it
             self.process_sidedef(
                 &clipped_line,
