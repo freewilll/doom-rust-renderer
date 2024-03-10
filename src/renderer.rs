@@ -568,7 +568,10 @@ impl Renderer<'_> {
                 clipped_bottom_y = min(SCREEN_HEIGHT as i16 - 1, clipped_bottom_y);
                 clipped_top_y = max(0, clipped_top_y);
 
-                let in_ver_clipped_area = clipped_bottom_y > clipped_top_y;
+                // Include special case of clipped_bottom_y == clipped_top_y, which
+                // takes care of zero-height sectors, e.g. sector 16 on the ourside
+                // of the outside area in e1m1
+                let in_ver_clipped_area = clipped_bottom_y >= clipped_top_y;
 
                 // The line isn't occluded. Draw it.
 
@@ -616,6 +619,7 @@ impl Renderer<'_> {
                         }
                     }
 
+                    // Process bottom top visplane
                     if clipped_top_y > ceiling_ver_ocl {
                         if clipped_top_y != -1 {
                             sidedef_vis_planes.add_top_point(x, ceiling_ver_ocl, clipped_top_y);
@@ -703,11 +707,11 @@ impl Renderer<'_> {
 
         // Get the floor and ceiling height from the front sector
         let floor_height = front_sector.floor_height as f32;
-        let ceiling_height = front_sector.ceiling_height as f32;
+        let mut ceiling_height = front_sector.ceiling_height as f32;
 
         // For portals, get the bottom and top heights by looking at the back
         // sector.
-        let (opt_portal_bottom_height, opt_portal_top_height) = match opt_back_sidedef {
+        let (opt_portal_bottom_height, mut opt_portal_top_height) = match opt_back_sidedef {
             Some(back_sidedef) => {
                 let back_sector = &back_sidedef.sector;
 
@@ -807,6 +811,23 @@ impl Renderer<'_> {
             );
         } else {
             // Draw a portal's lower and upper textures (if present)
+
+            // Special case of a two-sided linedef, in the outside area of e1m1
+            // The front sector has floor 24 and ceiling 256
+            // The back sector has floor 24 and ceiling 24.
+            // The should have the effect of the sky tecture going from height 24
+            // all the way upwards.
+            //
+            // Note: the same doesn't seem to be needed for the bottom part.
+            // See map01 on doom2, the outside area near the chainsaw. There
+            // is a missing texture there, which results in the hall of mirrors in
+            // doom 2 intead of a floor texture.
+            if let Some(portal_top_height) = opt_portal_top_height {
+                if front_sidedef.upper_texture == "-" && ceiling_height > portal_top_height {
+                    ceiling_height = portal_top_height;
+                    opt_portal_top_height = None;
+                }
+            }
 
             // Process the portal's bounds without drawing it
             self.process_sidedef(
