@@ -15,7 +15,7 @@ use crate::subsectors::SubSector;
 use crate::textures::{Texture, Textures};
 use crate::vertexes::Vertex;
 
-const PLAYER_HEIGHT: f32 = 56.0;
+const PLAYER_HEIGHT: f32 = 41.0;
 
 // The game ran on 320x200 but ended up on monitors with squarepixels and  320x240
 // https://doomwiki.org/wiki/Aspect_ratio#:~:text=it%20was%20wide.-,Design%20of%20graphics,to%20this%20hardware%20video%20mode.
