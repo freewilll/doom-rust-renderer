@@ -13,6 +13,7 @@ use std::f32::consts::PI;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
+use crate::flats::Flats;
 use crate::geometry::Line;
 use crate::linedefs::Flags;
 use crate::map::Map;
@@ -88,6 +89,7 @@ pub struct Game {
     viewing_map: bool,  // Toggle the 2D map
     turbo: f32,         // Percentage speed increase
     pictures: Pictures, // Pictures (aka patches)
+    flats: Flats,       // Flats
     textures: Textures,
     print_fps: bool, // Show frames per second
 }
@@ -119,6 +121,7 @@ impl Game {
 
         let palette = Palette::new(&wad_file);
         let pictures = Pictures::new(&wad_file);
+        let flats = Flats::new(&wad_file);
         let textures = Textures::new(&wad_file);
 
         let mut game = Game {
@@ -132,6 +135,7 @@ impl Game {
             turbo: (turbo as f32) / 100.0,
             palette,
             pictures,
+            flats,
             textures,
             print_fps,
         };
@@ -346,6 +350,7 @@ impl Game {
                     &mut pixels,
                     &self.map,
                     &mut self.textures,
+                    &mut self.flats,
                     &mut self.palette,
                     &self.player,
                 )

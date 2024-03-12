@@ -16,6 +16,7 @@ pub struct Pictures {
 // A picture (aka patch)
 #[allow(dead_code)]
 pub struct Picture {
+    pub name: String,         // The name
     wad_offset: u32,          // Offset in the WAD file
     pub width: i16,           // Width of graphic
     pub height: i16,          // Height of graphic
@@ -47,7 +48,7 @@ impl Pictures {
 }
 
 impl Picture {
-    // Create a new picture populate load the pixels
+    // Create a new picture and load the pixels
     pub fn new(wad_file: &WadFile, name: &str) -> Picture {
         let dir_entry = wad_file.get_dir_entry(name).unwrap();
         let offset = dir_entry.offset as usize;
@@ -66,6 +67,7 @@ impl Picture {
         }
 
         let mut picture = Picture {
+            name: name.to_string(),
             wad_offset: dir_entry.offset,
             width,
             height,

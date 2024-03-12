@@ -3,6 +3,7 @@ use sdl2::rect::Point;
 use std::cmp::{max, min};
 use std::rc::Rc;
 
+use crate::flats::{Flat, Flats, FLAT_SIZE};
 use crate::game::{Player, SCREEN_HEIGHT, SCREEN_WIDTH};
 use crate::geometry::Line;
 use crate::linedefs::Flags;
@@ -21,32 +22,20 @@ const PLAYER_HEIGHT: f32 = 41.0;
 // https://doomwiki.org/wiki/Aspect_ratio#:~:text=it%20was%20wide.-,Design%20of%20graphics,to%20this%20hardware%20video%20mode.
 pub const ASPECT_RATIO_CORRECTION: f32 = 200.0 / 240.0;
 
-// A couple of test colors used for easy visual development
-// From https://www.rapidtables.com/web/color/RGB_Color.html
-#[allow(dead_code)]
-const VISPLANE_COLORS: &'static [Color] = &[
-    Color::RGB(0, 128, 128),   //teal
-    Color::RGB(0, 139, 139),   //dark cyan
-    Color::RGB(0, 255, 255),   //aqua
-    Color::RGB(0, 255, 255),   //cyan
-    Color::RGB(224, 255, 255), //light cyan
-    Color::RGB(0, 206, 209),   //dark turquoise
-    Color::RGB(64, 224, 208),  //turquoise
-    Color::RGB(72, 209, 204),  //medium turquoise
-    Color::RGB(175, 238, 238), //pale turquoise
-    Color::RGB(127, 255, 212), //aqua marine
-    Color::RGB(176, 224, 230), //powder blue
-    Color::RGB(95, 158, 160),  //cadet blue
-    Color::RGB(70, 130, 180),  //steel blue
-    Color::RGB(100, 149, 237), //corn flower blue
-    Color::RGB(0, 191, 255),   //deep sky blue
-    Color::RGB(30, 144, 255),  //dodger blue
-];
+// Do the perspetive transformation using a more broad screen then the
+// actual screen. This is transformed back by the caller. The end result
+// is everything being shown on the screen as it would have on the original
+// VGA screens.
+pub const GAME_SCREEN_WIDTH: f32 = SCREEN_WIDTH as f32 / ASPECT_RATIO_CORRECTION;
+pub const GAME_CAMERA_FOCUS: f32 = GAME_SCREEN_WIDTH as f32 / 2.0 as f32;
+
+pub const CAMERA_FOCUS: f32 = SCREEN_WIDTH as f32 / 2.0;
 
 pub struct Renderer<'a> {
     pixels: &'a mut Pixels,
     map: &'a Map,
     textures: &'a mut Textures,
+    flats: &'a mut Flats,
     palette: &'a mut Palette,
     player: &'a Player,
     hor_ocl: [bool; SCREEN_WIDTH as usize], // Horizontal occlusions
@@ -55,11 +44,11 @@ pub struct Renderer<'a> {
     vis_planes: Vec<Visplane>,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
 struct Visplane {
     // Describes a floor or ceiling area bounded by vertical left and right lines.
-    floor_texture_hash: i16,
+    flat: Rc<Flat>,                       // The image
+    height: i16,                          // Height of the floor/ceiling
     left: i16,                            // Minimum x coordinate
     right: i16,                           // Maximum x coordinate
     top: [i16; SCREEN_WIDTH as usize],    // Top line
@@ -67,9 +56,10 @@ struct Visplane {
 }
 
 impl Visplane {
-    fn new(floor_texture_hash: i16) -> Visplane {
+    fn new(flat: &Rc<Flat>, height: i16) -> Visplane {
         Visplane {
-            floor_texture_hash: floor_texture_hash,
+            flat: Rc::clone(&flat),
+            height: height,
             left: -1,
             right: -1,
             top: [0; SCREEN_WIDTH as usize],
@@ -153,18 +143,13 @@ impl Pixels {
 //  \ ^ /
 //   \|/
 //     -----> y
+//
+// https://en.wikipedia.org/wiki/3D_projection#Weak_perspective_projection
 fn perspective_transform(v: &Vertex, y: f32) -> Vertex {
     let x = v.y;
     let z = v.x;
 
-    // Do the perspetive transformation using a more broad screen then the
-    // actual screen. This is transformed back by the caller. The end result
-    // is everything being shown on the screen as it would have on the original
-    // VGA screens.
-    let game_screen_width: f32 = SCREEN_WIDTH as f32 / ASPECT_RATIO_CORRECTION;
-    let game_camera_focus: f32 = game_screen_width as f32 / 2.0 as f32;
-
-    Vertex::new(game_camera_focus * x / z, game_camera_focus * y / z)
+    Vertex::new(GAME_CAMERA_FOCUS * x / z, GAME_CAMERA_FOCUS * y / z)
 }
 
 fn clip_to_viewport(line: &Line) -> Option<ClippedLine> {
@@ -289,33 +274,28 @@ fn make_sidedef_non_vertical_line(line: &Line, height: f32) -> SdlLine {
     transformed_start.x *= ASPECT_RATIO_CORRECTION;
     transformed_end.x *= ASPECT_RATIO_CORRECTION;
 
-    let camera_focus = SCREEN_WIDTH as f32 / 2.0;
-
     let mut screen_start = Point::new(
-        ((camera_focus - &transformed_start.x) as i32).into(),
-        ((SCREEN_HEIGHT as f32 / 2.0 - &transformed_start.y - 1.0) as i32).into(),
+        ((CAMERA_FOCUS - &transformed_start.x) as i32).into(),
+        ((CAMERA_FOCUS - &transformed_start.y) as i32).into(),
     );
 
     let mut screen_end = Point::new(
-        ((-&transformed_end.x + camera_focus) as i32).into(),
-        ((SCREEN_HEIGHT as f32 / 2.0 - &transformed_end.y - 1.0) as i32).into(),
+        ((CAMERA_FOCUS - &transformed_end.x) as i32).into(),
+        ((CAMERA_FOCUS - &transformed_end.y) as i32).into(),
     );
 
-    if screen_start.x >= SCREEN_WIDTH as i32 {
-        screen_start.x = SCREEN_WIDTH as i32 - 1
-    }
-
-    if screen_end.x >= SCREEN_WIDTH as i32 {
-        screen_end.x = SCREEN_WIDTH as i32 - 1
-    }
+    screen_start.x = screen_start.x.min(SCREEN_WIDTH as i32 - 1);
+    screen_end.x = screen_end.x.min(SCREEN_WIDTH as i32 - 1);
 
     SdlLine::new(&screen_start, &screen_end)
 }
 
 // Keep track of the visplane state while processing a sidedef
 struct SidedefVisPlanes {
-    floor_texture_hash: i16,
-    ceiling_texture_hash: i16,
+    floor_flat: Rc<Flat>,
+    ceiling_flat: Rc<Flat>,
+    floor_height: i16,
+    ceiling_height: i16,
     bottom_visplane: Visplane,
     top_visplane: Visplane,
     bottom_visplane_used: bool,
@@ -323,13 +303,20 @@ struct SidedefVisPlanes {
 }
 
 impl SidedefVisPlanes {
-    fn new(floor_texture_hash: i16, ceiling_texture_hash: i16) -> SidedefVisPlanes {
+    fn new(
+        floor_flat: &Rc<Flat>,
+        ceiling_flat: &Rc<Flat>,
+        floor_height: i16,
+        ceiling_height: i16,
+    ) -> SidedefVisPlanes {
         SidedefVisPlanes {
-            floor_texture_hash: floor_texture_hash,
-            ceiling_texture_hash: ceiling_texture_hash,
-            bottom_visplane: Visplane::new(floor_texture_hash),
+            floor_flat: Rc::clone(floor_flat),
+            ceiling_flat: Rc::clone(ceiling_flat),
+            floor_height: floor_height,
+            ceiling_height: ceiling_height,
+            bottom_visplane: Visplane::new(floor_flat, floor_height),
             bottom_visplane_used: false,
-            top_visplane: Visplane::new(ceiling_texture_hash),
+            top_visplane: Visplane::new(ceiling_flat, ceiling_height),
             top_visplane_used: false,
         }
     }
@@ -339,14 +326,14 @@ impl SidedefVisPlanes {
         if self.bottom_visplane_used {
             renderer.vis_planes.push(self.bottom_visplane.clone());
 
-            self.bottom_visplane = Visplane::new(self.floor_texture_hash);
+            self.bottom_visplane = Visplane::new(&self.floor_flat, self.floor_height);
             self.bottom_visplane_used = false;
         }
 
         if self.top_visplane_used {
             renderer.vis_planes.push(self.top_visplane.clone());
 
-            self.top_visplane = Visplane::new(self.ceiling_texture_hash);
+            self.top_visplane = Visplane::new(&self.ceiling_flat, self.ceiling_height);
             self.top_visplane_used = false;
         }
     }
@@ -378,36 +365,66 @@ impl SidedefVisPlanes {
     }
 }
 
-fn draw_visplane(pixels: &mut Pixels, visplane: &Visplane) {
+fn draw_visplane(pixels: &mut Pixels, palette: &Palette, player: &Player, visplane: &Visplane) {
     const DEBUG_DRAW_OUTLINE: bool = false;
 
-    let solid_color = VISPLANE_COLORS[visplane.floor_texture_hash as usize % VISPLANE_COLORS.len()];
-    let outline_color = Color::RGB(255, 255, 255);
+    let is_sky = visplane.flat.name.contains("SKY");
 
     for x in visplane.left..visplane.right + 1 {
-        let top = visplane.top[x as usize];
-        let bottom = visplane.bottom[x as usize];
+        let top = visplane.top[x as usize].max(0);
+        let bottom = visplane.bottom[x as usize].min(SCREEN_HEIGHT as i16 - 1);
 
-        pixels.draw_vertical_line(x as i32, top as i32, bottom as i32, &solid_color);
+        for y in top..bottom + 1 {
+            // x and y are in screen coordinates. We need to go backwards all the way
+            // to world coordinates.
+
+            // Transform to viewport coordinates (v prefix) (the reverse of make_sidedef_non_vertical_line)
+            let vx = (CAMERA_FOCUS - x as f32) / ASPECT_RATIO_CORRECTION;
+            let vy = CAMERA_FOCUS - y as f32;
+
+            // Inverse perspective transform to world coordinates (w prefix)
+            let wz = visplane.height as f32 - player.floor_height - PLAYER_HEIGHT;
+            let wx = GAME_CAMERA_FOCUS * wz / vy as f32;
+            let wy = wz * vx as f32 / vy as f32;
+
+            // Translate and rotate to player view
+            let rotated = Vertex::new(wx, wy).rotate(player.angle);
+
+            let mut tx: i16 = rotated.x as i16 + player.position.x as i16;
+            let mut ty: i16 = rotated.y as i16 + player.position.y as i16;
+
+            tx = tx & (FLAT_SIZE - 1);
+            ty = ty & (FLAT_SIZE - 1);
+
+            let color = if is_sky {
+                Color::RGB(135, 206, 235)
+            } else {
+                palette.colors[visplane.flat.pixels[ty as usize][tx as usize] as usize]
+            };
+
+            pixels.set(x as usize, y as usize, &color);
+        }
     }
 
     if DEBUG_DRAW_OUTLINE {
+        let outline_color = Color::RGB(255, 255, 255);
+        for x in visplane.left..visplane.right + 1 {
+            let top = visplane.top[x as usize].max(0);
+            let bottom = visplane.bottom[x as usize].min(SCREEN_HEIGHT as i16 - 1);
+
+            pixels.set(x as usize, top as usize, &outline_color);
+            pixels.set(x as usize, bottom as usize, &outline_color);
+        }
+
         let left = visplane.left as i32;
+        let top = visplane.top[left as usize].max(0) as i32;
+        let bottom = visplane.bottom[left as usize].min(SCREEN_HEIGHT as i16 - 1) as i32;
+        pixels.draw_vertical_line(left, top, bottom, &outline_color);
+
         let right = visplane.right as i32;
-
-        pixels.draw_vertical_line(
-            left,
-            visplane.top[left as usize] as i32,
-            visplane.bottom[left as usize] as i32,
-            &outline_color,
-        );
-
-        pixels.draw_vertical_line(
-            right,
-            visplane.top[left as usize] as i32,
-            visplane.bottom[left as usize] as i32,
-            &outline_color,
-        );
+        let top = visplane.top[right as usize].max(0) as i32;
+        let bottom = visplane.bottom[right as usize].min(SCREEN_HEIGHT as i16 - 1) as i32;
+        pixels.draw_vertical_line(right, top, bottom, &outline_color);
     }
 }
 
@@ -416,6 +433,7 @@ impl Renderer<'_> {
         pixels: &'a mut Pixels,
         map: &'a Map,
         textures: &'a mut Textures,
+        flats: &'a mut Flats,
         palette: &'a mut Palette,
         player: &'a Player,
     ) -> Renderer<'a> {
@@ -423,6 +441,7 @@ impl Renderer<'_> {
             pixels,
             map,
             textures,
+            flats,
             palette,
             player,
             hor_ocl: [false; SCREEN_WIDTH as usize],
@@ -434,7 +453,7 @@ impl Renderer<'_> {
 
     fn draw_visplanes(&mut self) {
         for visplane in &self.vis_planes {
-            draw_visplane(&mut self.pixels, &visplane);
+            draw_visplane(&mut self.pixels, &self.palette, &self.player, &visplane);
         }
     }
 
@@ -518,8 +537,10 @@ impl Renderer<'_> {
         seg_offset: i16,    // Distance along linedef to start of seg
         offset_y: i32,      // Texture offset in viewport coordinates
         texture_name: &str, // Optional texture
-        floor_texture_hash: i16, // Hash of the floor texture
-        ceiling_texture_hash: i16, // Hash of the ceiling texture
+        floor_flat: &Rc<Flat>, // Hash of the floor texture
+        ceiling_flat: &Rc<Flat>, // Hash of the ceiling texture
+        floor_height: i16,  // Height of the floor
+        ceiling_height: i16, // Height of the ceiling
         is_whole_sidedef: bool, // For occlusion & visplane processing
         is_lower_wall: bool, // For portals: the rendered piece of wall
         is_upper_wall: bool, // For portals: the rendered piece of wall
@@ -558,7 +579,7 @@ impl Renderer<'_> {
             (top.start.y as f32 - top.end.y as f32) / (top.start.x as f32 - top.end.x as f32);
 
         let mut sidedef_vis_planes =
-            SidedefVisPlanes::new(floor_texture_hash, ceiling_texture_hash);
+            SidedefVisPlanes::new(floor_flat, ceiling_flat, floor_height, ceiling_height);
 
         // Does the wall from from floor to ceiling?
         let is_full_height_wall = !is_lower_wall && !is_upper_wall && !is_whole_sidedef;
@@ -722,7 +743,7 @@ impl Renderer<'_> {
 
         // Get the floor and ceiling height from the front sector
         let floor_height = front_sector.floor_height as f32;
-        let mut ceiling_height = front_sector.ceiling_height as f32;
+        let ceiling_height = front_sector.ceiling_height as f32;
 
         // For portals, get the bottom and top heights by looking at the back
         // sector.
@@ -795,6 +816,9 @@ impl Renderer<'_> {
             return;
         }
 
+        let floor_flat = self.flats.get(front_sector.floor_texture.as_str());
+        let ceiling_flat = self.flats.get(front_sector.ceiling_texture.as_str());
+
         // All the transformations are done and the wall/portal is facing us.
         // Call the sidedef processor with the three parts of the wall/portal.
         // https://doomwiki.org/wiki/Texture_alignment
@@ -818,8 +842,10 @@ impl Renderer<'_> {
                 seg.offset,
                 offset_y,
                 &front_sidedef.middle_texture,
-                front_sector.floor_texture_hash,
-                front_sector.ceiling_texture_hash,
+                &floor_flat,
+                &ceiling_flat,
+                front_sector.floor_height,
+                front_sector.ceiling_height,
                 false,
                 false,
                 false,
@@ -827,26 +853,8 @@ impl Renderer<'_> {
         } else {
             // Draw a portal's lower and upper textures (if present)
 
-            // Special case of a two-sided linedef, in the outside area of e1m1
-            // The front sector has floor 24 and ceiling 256
-            // The back sector has floor 24 and ceiling 24.
-            // The should have the effect of the sky tecture going from height 24
-            // all the way upwards.
-            //
-            // Note: the same doesn't seem to be needed for the bottom part.
-            // See map01 on doom2, the outside area near the chainsaw. There
-            // is a missing texture there, which results in the hall of mirrors in
-            // doom 2 intead of a floor texture.
-            if let Some(portal_top_height) = opt_portal_top_height {
-                if front_sidedef.upper_texture == "-" && ceiling_height > portal_top_height {
-                    ceiling_height = portal_top_height;
-                    opt_portal_top_height = None;
-                }
-            }
-
-            // Some two-sided outside walls have both a sky texture on both sides,
-            // yet have an upper texture on one side with a lower ceiling on the other.
-            // ignore this and don't draw the upper texture.
+            // If both the front and back sector are sky, then don't draw the linedef.
+            // https://doomwiki.org/wiki/Sky_hack
             if let Some(portal_top_height) = opt_portal_top_height {
                 if let Some(back_sidedef) = opt_back_sidedef {
                     let sky_on_both_sides = front_sidedef.sector.ceiling_texture.contains("SKY")
@@ -867,8 +875,10 @@ impl Renderer<'_> {
                 seg.offset,
                 0,
                 &front_sidedef.middle_texture,
-                front_sector.floor_texture_hash,
-                front_sector.ceiling_texture_hash,
+                &floor_flat,
+                &ceiling_flat,
+                front_sector.floor_height,
+                front_sector.ceiling_height,
                 true, // Only process occlusions and visplanes
                 false,
                 false,
@@ -892,8 +902,10 @@ impl Renderer<'_> {
                     seg.offset,
                     offset_y,
                     &front_sidedef.lower_texture,
-                    front_sector.floor_texture_hash,
-                    front_sector.ceiling_texture_hash,
+                    &floor_flat,
+                    &ceiling_flat,
+                    front_sector.floor_height,
+                    front_sector.ceiling_height,
                     false,
                     true,
                     false,
@@ -918,8 +930,10 @@ impl Renderer<'_> {
                     seg.offset,
                     offset_y,
                     &front_sidedef.upper_texture,
-                    front_sector.floor_texture_hash,
-                    front_sector.ceiling_texture_hash,
+                    &floor_flat,
+                    &ceiling_flat,
+                    front_sector.floor_height,
+                    front_sector.ceiling_height,
                     false,
                     false,
                     true,

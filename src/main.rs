@@ -2,6 +2,7 @@ use clap::{arg, command, Parser};
 use std::rc::Rc;
 use std::{fs::metadata, fs::File, io::Read};
 
+mod flats;
 mod game;
 mod geometry;
 mod linedefs;
