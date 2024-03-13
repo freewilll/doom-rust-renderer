@@ -544,6 +544,7 @@ impl Renderer<'_> {
         is_whole_sidedef: bool, // For occlusion & visplane processing
         is_lower_wall: bool, // For portals: the rendered piece of wall
         is_upper_wall: bool, // For portals: the rendered piece of wall
+        draw_ceiling: bool, // Set to false in a special case for sky texture
     ) {
         let bottom = make_sidedef_non_vertical_line(&clipped_line.line, bottom_height);
         let top = make_sidedef_non_vertical_line(&clipped_line.line, top_height);
@@ -655,10 +656,12 @@ impl Renderer<'_> {
                         }
                     }
 
-                    // Process bottom top visplane
-                    if clipped_top_y > ceiling_ver_ocl {
+                    // Process top visplane
+                    if draw_ceiling && clipped_top_y > ceiling_ver_ocl {
                         if clipped_top_y != -1 {
-                            sidedef_vis_planes.add_top_point(x, ceiling_ver_ocl, clipped_top_y);
+                            if draw_ceiling {
+                                sidedef_vis_planes.add_top_point(x, ceiling_ver_ocl, clipped_top_y);
+                            }
                             visplane_added = true;
                         }
                     }
@@ -683,8 +686,10 @@ impl Renderer<'_> {
                         self.occlude_vertical_line(x);
                     }
 
-                    if top_y >= floor_ver_ocl {
-                        sidedef_vis_planes.add_top_point(x, ceiling_ver_ocl, floor_ver_ocl);
+                    if draw_ceiling && top_y >= floor_ver_ocl {
+                        if draw_ceiling {
+                            sidedef_vis_planes.add_top_point(x, ceiling_ver_ocl, floor_ver_ocl);
+                        }
 
                         // Occlude the entire vertical line
                         self.occlude_vertical_line(x);
@@ -693,7 +698,10 @@ impl Renderer<'_> {
 
                 if in_ver_clipped_area && is_whole_sidedef {
                     self.floor_ver_ocl[x as usize] = clipped_bottom_y;
-                    self.ceiling_ver_ocl[x as usize] = clipped_top_y;
+
+                    if draw_ceiling {
+                        self.ceiling_ver_ocl[x as usize] = clipped_top_y;
+                    }
                 }
 
                 // Update vertical occlusions
@@ -743,7 +751,7 @@ impl Renderer<'_> {
 
         // Get the floor and ceiling height from the front sector
         let floor_height = front_sector.floor_height as f32;
-        let ceiling_height = front_sector.ceiling_height as f32;
+        let mut ceiling_height = front_sector.ceiling_height as f32;
 
         // For portals, get the bottom and top heights by looking at the back
         // sector.
@@ -819,6 +827,22 @@ impl Renderer<'_> {
         let floor_flat = self.flats.get(front_sector.floor_texture.as_str());
         let ceiling_flat = self.flats.get(front_sector.ceiling_texture.as_str());
 
+        let mut draw_ceiling = true;
+
+        // If both the front and back sector are sky, then don't draw the top linedef
+        // and don't draw the sky.
+        // https://doomwiki.org/wiki/Sky_hack
+        // This follows the gory details in r_segs.c
+        if let Some(back_sidedef) = opt_back_sidedef {
+            if front_sidedef.sector.ceiling_texture.contains("SKY")
+                && back_sidedef.sector.ceiling_texture.contains("SKY")
+            {
+                opt_portal_top_height = None;
+                ceiling_height = back_sidedef.sector.ceiling_height as f32;
+                draw_ceiling = false;
+            }
+        }
+
         // All the transformations are done and the wall/portal is facing us.
         // Call the sidedef processor with the three parts of the wall/portal.
         // https://doomwiki.org/wiki/Texture_alignment
@@ -849,22 +873,10 @@ impl Renderer<'_> {
                 false,
                 false,
                 false,
+                draw_ceiling,
             );
         } else {
             // Draw a portal's lower and upper textures (if present)
-
-            // If both the front and back sector are sky, then don't draw the linedef.
-            // https://doomwiki.org/wiki/Sky_hack
-            if let Some(portal_top_height) = opt_portal_top_height {
-                if let Some(back_sidedef) = opt_back_sidedef {
-                    let sky_on_both_sides = front_sidedef.sector.ceiling_texture.contains("SKY")
-                        && back_sidedef.sector.ceiling_texture.contains("SKY");
-
-                    if sky_on_both_sides && ceiling_height > portal_top_height {
-                        opt_portal_top_height = None;
-                    }
-                }
-            }
 
             // Process the portal's bounds without drawing it
             self.process_sidedef(
@@ -882,6 +894,7 @@ impl Renderer<'_> {
                 true, // Only process occlusions and visplanes
                 false,
                 false,
+                draw_ceiling,
             );
 
             // Process the lower texture
@@ -909,6 +922,7 @@ impl Renderer<'_> {
                     false,
                     true,
                     false,
+                    draw_ceiling,
                 );
             }
 
@@ -937,6 +951,7 @@ impl Renderer<'_> {
                     false,
                     false,
                     true,
+                    draw_ceiling,
                 );
             }
         }
