@@ -1,6 +1,7 @@
 use sdl2::pixels::Color;
 use sdl2::rect::Point;
 use std::cmp::{max, min};
+use std::f32::consts::PI;
 use std::rc::Rc;
 
 use crate::flats::{Flat, Flats, FLAT_SIZE};
@@ -35,6 +36,7 @@ pub struct Renderer<'a> {
     pixels: &'a mut Pixels,
     map: &'a Map,
     textures: &'a mut Textures,
+    sky_texture: Rc<Texture>,
     flats: &'a mut Flats,
     palette: &'a mut Palette,
     player: &'a Player,
@@ -365,10 +367,54 @@ impl SidedefVisPlanes {
     }
 }
 
-fn draw_visplane(pixels: &mut Pixels, palette: &Palette, player: &Player, visplane: &Visplane) {
+fn draw_sky(
+    pixels: &mut Pixels,
+    palette: &Palette,
+    player: &Player,
+    sky_texture: Rc<Texture>,
+    visplane: &Visplane,
+) {
+    const SKY_TEXTURE_WIDTH: i16 = 256; // Corresponds with the 90-degree player view
+    const SKY_TEXTURE_HEIGHT: i16 = 128;
+
+    // Based on the player angle, calculate the x-offset into the sky texture
+    // 90 degrees of player angle is one SKY_TEXTURE_WIDTH
+    let mut tx_offset =
+        (-SKY_TEXTURE_WIDTH as f32 * player.angle / (PI / 2.0)) as i16 + SKY_TEXTURE_WIDTH;
+    if tx_offset < 0 {
+        tx_offset += SKY_TEXTURE_WIDTH * (1 - tx_offset / SKY_TEXTURE_WIDTH);
+    }
+
+    for x in visplane.left..visplane.right + 1 {
+        let top = visplane.top[x as usize].max(0);
+        let bottom = visplane.bottom[x as usize].min(SCREEN_HEIGHT as i16 - 1);
+
+        for y in top..bottom + 1 {
+            let mut tx = (x as f32 * SKY_TEXTURE_WIDTH as f32 / SCREEN_WIDTH as f32) as i16;
+            tx = (tx + tx_offset) % SKY_TEXTURE_WIDTH;
+
+            let ty = (y as f32 * SKY_TEXTURE_HEIGHT as f32 / SCREEN_HEIGHT as f32) as i16;
+
+            let color = palette.colors[sky_texture.pixels[ty as usize][tx as usize] as usize];
+
+            pixels.set(x as usize, y as usize, &color);
+        }
+    }
+}
+
+fn draw_visplane(
+    pixels: &mut Pixels,
+    palette: &Palette,
+    player: &Player,
+    sky_texture: Rc<Texture>,
+    visplane: &Visplane,
+) {
     const DEBUG_DRAW_OUTLINE: bool = false;
 
-    let is_sky = visplane.flat.name.contains("SKY");
+    if visplane.flat.name.contains("SKY") {
+        draw_sky(pixels, palette, player, Rc::clone(&sky_texture), visplane);
+        return;
+    }
 
     for x in visplane.left..visplane.right + 1 {
         let top = visplane.top[x as usize].max(0);
@@ -396,11 +442,7 @@ fn draw_visplane(pixels: &mut Pixels, palette: &Palette, player: &Player, vispla
             tx = tx & (FLAT_SIZE - 1);
             ty = ty & (FLAT_SIZE - 1);
 
-            let color = if is_sky {
-                Color::RGB(135, 206, 235)
-            } else {
-                palette.colors[visplane.flat.pixels[ty as usize][tx as usize] as usize]
-            };
+            let color = palette.colors[visplane.flat.pixels[ty as usize][tx as usize] as usize];
 
             pixels.set(x as usize, y as usize, &color);
         }
@@ -433,6 +475,7 @@ impl Renderer<'_> {
         pixels: &'a mut Pixels,
         map: &'a Map,
         textures: &'a mut Textures,
+        sky_texture: Rc<Texture>,
         flats: &'a mut Flats,
         palette: &'a mut Palette,
         player: &'a Player,
@@ -441,6 +484,7 @@ impl Renderer<'_> {
             pixels,
             map,
             textures,
+            sky_texture,
             flats,
             palette,
             player,
@@ -453,7 +497,13 @@ impl Renderer<'_> {
 
     fn draw_visplanes(&mut self) {
         for visplane in &self.vis_planes {
-            draw_visplane(&mut self.pixels, &self.palette, &self.player, &visplane);
+            draw_visplane(
+                &mut self.pixels,
+                &self.palette,
+                &self.player,
+                Rc::clone(&self.sky_texture),
+                &visplane,
+            );
         }
     }
 

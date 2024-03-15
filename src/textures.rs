@@ -5,7 +5,7 @@ use std::{fmt, str};
 
 use crate::game::Game;
 use crate::pictures::Picture;
-use crate::wad::WadFile;
+use crate::wad::{DirEntry, WadFile};
 
 // A texture consists of a list of patches. Each patch has an origin (x,y) and refers to
 // an entry in the PNAMES lump which has as lump name of a picture.
@@ -14,14 +14,12 @@ use crate::wad::WadFile;
 
 // Names of wall patches + offsets into the WAD file
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct Pname {
     pub name: String,            // Lump name
     pub wad_offset: Option<u32>, // Offset in WAD file (None if the lump doesn't exist)
 }
 
 // Patch is a lazy loaded picture + offset within the texture
-#[allow(dead_code)]
 struct Patch {
     origin_x: i16,                // The horizontal offset relative to the upper-left
     origin_y: i16,                // The vertical offset relative to the upper-left
@@ -32,7 +30,6 @@ struct Patch {
 
 // A texture definition contains the data needed to load a texture. It's data comes
 // straight from the WAD file.
-#[allow(dead_code)]
 pub struct TextureDefinition {
     width: i16,
     height: i16,
@@ -41,7 +38,6 @@ pub struct TextureDefinition {
 }
 
 // A Texture is a loaded texture, with its pixels populated from the patches
-#[allow(dead_code)]
 pub struct Texture {
     pub width: i16,
     pub height: i16,
@@ -49,7 +45,6 @@ pub struct Texture {
 }
 
 // A struct to handle lazy loaded textures
-#[allow(dead_code)]
 pub struct Textures {
     definitions: HashMap<String, TextureDefinition>, // The available textures
     wad_file: Rc<WadFile>,                           // Needed to be able to lazy load textures
@@ -135,13 +130,20 @@ impl Textures {
         };
 
         textures.load_pnames();
-        textures.load_texture1();
+
+        // TEXTURE1 is always present
+        let texture1_dir_entry = wad_file.get_dir_entry("TEXTURE1").unwrap();
+        textures.load_texture_list(texture1_dir_entry);
+
+        // TEXTURE2 is only present in the registered version of Doom 1
+        if let Ok(dir_entry) = wad_file.get_dir_entry("TEXTURE2") {
+            textures.load_texture_list(&dir_entry);
+        }
 
         textures
     }
 
     // Return a texture from the cache, otherwise load it
-    #[allow(dead_code)]
     pub fn get(&mut self, name: &str) -> Rc<Texture> {
         let definition: &mut TextureDefinition = self
             .definitions
@@ -193,19 +195,18 @@ impl Textures {
         self.pnames = pnames;
     }
 
-    // Load TEXTURE1 lump. This contains names of all the textures + patches they
+    // Load TEXTURE1 or TEXTURE2 lump. This contains names of all the textures + patches they
     // are made up of.
-    fn load_texture1(&mut self) {
+    fn load_texture_list(&mut self, dir_entry: &DirEntry) {
         let wad_file = &self.wad_file;
 
-        let texture1_dir_entry = wad_file.get_dir_entry("TEXTURE1").unwrap();
-        let texture1_offset = texture1_dir_entry.offset as usize;
+        let texture_list_offset = dir_entry.offset as usize;
 
-        let texture_count = wad_file.read_u32(texture1_offset);
+        let texture_count = wad_file.read_u32(texture_list_offset);
 
         for i in 0..texture_count as usize {
-            let map_texture_offset = wad_file.read_u32(texture1_offset + 4 + 4 * i) as usize;
-            let offset = texture1_offset + map_texture_offset;
+            let map_texture_offset = wad_file.read_u32(texture_list_offset + 4 + 4 * i) as usize;
+            let offset = texture_list_offset + map_texture_offset;
             let name = wad_file.read_lump_name(offset);
 
             let width = wad_file.read_i16(offset + 12);

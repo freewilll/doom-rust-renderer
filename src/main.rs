@@ -21,7 +21,6 @@ mod vertexes;
 mod wad;
 
 use game::Game;
-use map::Map;
 use wad::WadFile;
 
 // Read a file into a u8 vector
@@ -60,8 +59,7 @@ pub fn main() {
 
     let file = read_file(&args.wad);
     let wad_file = Rc::new(WadFile::new(file));
-    let map = Map::new(&wad_file, args.map.as_str());
 
-    let mut game = Game::new(wad_file, map, args.turbo, args.print_fps);
+    let mut game = Game::new(wad_file, args.map.as_str(), args.turbo, args.print_fps);
     game.main_loop();
 }

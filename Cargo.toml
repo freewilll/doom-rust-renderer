@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.5.1", features = ["cargo", "derive"] }
+regex = "1.10.3"
 sdl2 = "0.36.0"
 
 

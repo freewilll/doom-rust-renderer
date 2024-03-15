@@ -1,3 +1,5 @@
+use regex::Regex;
+
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
@@ -21,7 +23,7 @@ use crate::nodes::NodeChild;
 use crate::palette::Palette;
 use crate::pictures::Pictures;
 use crate::renderer::{Pixels, Renderer};
-use crate::textures::Textures;
+use crate::textures::{Texture, Textures};
 use crate::things::{get_thing_by_type, ThingTypes};
 use crate::vertexes::Vertex;
 use crate::wad::WadFile;
@@ -91,11 +93,12 @@ pub struct Game {
     pictures: Pictures, // Pictures (aka patches)
     flats: Flats,       // Flats
     textures: Textures,
+    sky_texture: Rc<Texture>,
     print_fps: bool, // Show frames per second
 }
 
 impl Game {
-    pub fn new(wad_file: Rc<WadFile>, map: Map, turbo: i16, print_fps: bool) -> Game {
+    pub fn new(wad_file: Rc<WadFile>, map_name: &str, turbo: i16, print_fps: bool) -> Game {
         let sdl_context = sdl2::init().unwrap();
         let video_subsystem = sdl_context.video().unwrap();
 
@@ -112,6 +115,8 @@ impl Game {
             .build()
             .unwrap();
 
+        let map = Map::new(&wad_file, map_name);
+
         let player1_start = get_thing_by_type(&map.things, ThingTypes::Player1Start);
         let player = Player {
             position: Vertex::new(player1_start.x, player1_start.y),
@@ -122,7 +127,9 @@ impl Game {
         let palette = Palette::new(&wad_file);
         let pictures = Pictures::new(&wad_file);
         let flats = Flats::new(&wad_file);
-        let textures = Textures::new(&wad_file);
+        let mut textures = Textures::new(&wad_file);
+
+        let sky_texture = Self::get_sky_texture(map_name, &mut textures);
 
         let mut game = Game {
             sdl_context,
@@ -137,6 +144,7 @@ impl Game {
             pictures,
             flats,
             textures,
+            sky_texture: Rc::clone(&sky_texture),
             print_fps,
         };
 
@@ -144,6 +152,37 @@ impl Game {
         game.update_current_player_height();
 
         game
+    }
+
+    // Determine which sky texture to be used based on the map name
+    fn get_sky_texture(map_name: &str, textures: &mut Textures) -> Rc<Texture> {
+        let doom1_re = Regex::new(r"e(?<episode>\d+)m(?<map>\d+)").unwrap();
+        if let Some(caps) = doom1_re.captures(map_name) {
+            let episode = caps["episode"].parse::<i32>().unwrap();
+
+            return match episode {
+                1 => Rc::clone(&textures.get("SKY1")),
+                2 => Rc::clone(&textures.get("SKY2")),
+                3 => Rc::clone(&textures.get("SKY3")),
+                _ => Rc::clone(&textures.get("SKY1")), // Should not happen
+            };
+        }
+
+        let doom2_re = Regex::new(r"(?<map>\d\d)").unwrap();
+        if let Some(caps) = doom2_re.captures(map_name) {
+            let map = caps["map"].parse::<i32>().unwrap();
+
+            if map < 12 {
+                return Rc::clone(&textures.get("SKY1"));
+            } else if map < 21 {
+                return Rc::clone(&textures.get("SKY2"));
+            } else {
+                return Rc::clone(&textures.get("SKY3"));
+            }
+        }
+
+        // Fall back to something
+        Rc::clone(&textures.get("SKY1"))
     }
 
     pub fn transform_vertex_to_point_for_map(&self, v: &Vertex) -> Point {
@@ -350,6 +389,7 @@ impl Game {
                     &mut pixels,
                     &self.map,
                     &mut self.textures,
+                    Rc::clone(&self.sky_texture),
                     &mut self.flats,
                     &mut self.palette,
                     &self.player,
