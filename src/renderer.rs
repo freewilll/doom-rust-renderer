@@ -51,6 +51,7 @@ struct Visplane {
     // Describes a floor or ceiling area bounded by vertical left and right lines.
     flat: Rc<Flat>,                       // The image
     height: i16,                          // Height of the floor/ceiling
+    light_level: i16,                     // Light level
     left: i16,                            // Minimum x coordinate
     right: i16,                           // Maximum x coordinate
     top: [i16; SCREEN_WIDTH as usize],    // Top line
@@ -58,10 +59,11 @@ struct Visplane {
 }
 
 impl Visplane {
-    fn new(flat: &Rc<Flat>, height: i16) -> Visplane {
+    fn new(flat: &Rc<Flat>, height: i16, light_level: i16) -> Visplane {
         Visplane {
             flat: Rc::clone(&flat),
-            height: height,
+            height,
+            light_level,
             left: -1,
             right: -1,
             top: [0; SCREEN_WIDTH as usize],
@@ -294,6 +296,7 @@ fn make_sidedef_non_vertical_line(line: &Line, height: f32) -> SdlLine {
 
 // Keep track of the visplane state while processing a sidedef
 struct SidedefVisPlanes {
+    light_level: i16,
     floor_flat: Rc<Flat>,
     ceiling_flat: Rc<Flat>,
     floor_height: i16,
@@ -306,19 +309,21 @@ struct SidedefVisPlanes {
 
 impl SidedefVisPlanes {
     fn new(
+        light_level: i16,
         floor_flat: &Rc<Flat>,
         ceiling_flat: &Rc<Flat>,
         floor_height: i16,
         ceiling_height: i16,
     ) -> SidedefVisPlanes {
         SidedefVisPlanes {
+            light_level,
             floor_flat: Rc::clone(floor_flat),
             ceiling_flat: Rc::clone(ceiling_flat),
             floor_height: floor_height,
             ceiling_height: ceiling_height,
-            bottom_visplane: Visplane::new(floor_flat, floor_height),
+            bottom_visplane: Visplane::new(floor_flat, floor_height, light_level),
             bottom_visplane_used: false,
-            top_visplane: Visplane::new(ceiling_flat, ceiling_height),
+            top_visplane: Visplane::new(ceiling_flat, ceiling_height, light_level),
             top_visplane_used: false,
         }
     }
@@ -328,14 +333,16 @@ impl SidedefVisPlanes {
         if self.bottom_visplane_used {
             renderer.vis_planes.push(self.bottom_visplane.clone());
 
-            self.bottom_visplane = Visplane::new(&self.floor_flat, self.floor_height);
+            self.bottom_visplane =
+                Visplane::new(&self.floor_flat, self.floor_height, self.light_level);
             self.bottom_visplane_used = false;
         }
 
         if self.top_visplane_used {
             renderer.vis_planes.push(self.top_visplane.clone());
 
-            self.top_visplane = Visplane::new(&self.ceiling_flat, self.ceiling_height);
+            self.top_visplane =
+                Visplane::new(&self.ceiling_flat, self.ceiling_height, self.light_level);
             self.top_visplane_used = false;
         }
     }
@@ -402,6 +409,16 @@ fn draw_sky(
     }
 }
 
+fn diminish_color(color: &Color, light_level: i16) -> Color {
+    let factor = light_level as f32 / 255.0;
+
+    Color::RGB(
+        (color.r as f32 * factor as f32) as u8,
+        (color.g as f32 * factor as f32) as u8,
+        (color.b as f32 * factor as f32) as u8,
+    )
+}
+
 fn draw_visplane(
     pixels: &mut Pixels,
     palette: &Palette,
@@ -443,8 +460,9 @@ fn draw_visplane(
             ty = ty & (FLAT_SIZE - 1);
 
             let color = palette.colors[visplane.flat.pixels[ty as usize][tx as usize] as usize];
+            let diminished_color = diminish_color(&color, visplane.light_level);
 
-            pixels.set(x as usize, y as usize, &color);
+            pixels.set(x as usize, y as usize, &diminished_color);
         }
     }
 
@@ -529,6 +547,7 @@ impl Renderer<'_> {
         &mut self,
         sidedef: &Sidedef,          // The sidedef
         texture: &Texture,          // The texture
+        light_level: i16,           // Sector light level
         clipped_line: &ClippedLine, // The clipped line in viewport coordinates
         start_x: i32,               // The clipped line x start in screen coordinates
         end_x: i32,                 // The clipped line x end in screen coordinates
@@ -572,7 +591,9 @@ impl Renderer<'_> {
             ty = ty % texture.height;
 
             let color = self.palette.colors[texture.pixels[ty as usize][tx as usize] as usize];
-            self.pixels.set(x as usize, y as usize, &color);
+            let diminished_color = diminish_color(&color, light_level);
+
+            self.pixels.set(x as usize, y as usize, &diminished_color);
         }
     }
 
@@ -587,6 +608,7 @@ impl Renderer<'_> {
         seg_offset: i16,    // Distance along linedef to start of seg
         offset_y: i32,      // Texture offset in viewport coordinates
         texture_name: &str, // Optional texture
+        light_level: i16,   // Sector light level
         floor_flat: &Rc<Flat>, // Hash of the floor texture
         ceiling_flat: &Rc<Flat>, // Hash of the ceiling texture
         floor_height: i16,  // Height of the floor
@@ -629,8 +651,13 @@ impl Renderer<'_> {
         let top_delta =
             (top.start.y as f32 - top.end.y as f32) / (top.start.x as f32 - top.end.x as f32);
 
-        let mut sidedef_vis_planes =
-            SidedefVisPlanes::new(floor_flat, ceiling_flat, floor_height, ceiling_height);
+        let mut sidedef_vis_planes = SidedefVisPlanes::new(
+            light_level,
+            floor_flat,
+            ceiling_flat,
+            floor_height,
+            ceiling_height,
+        );
 
         // Does the wall from from floor to ceiling?
         let is_full_height_wall = !is_lower_wall && !is_upper_wall && !is_whole_sidedef;
@@ -679,6 +706,7 @@ impl Renderer<'_> {
                             self.render_vertical_texture_line(
                                 &sidedef,
                                 &texture,
+                                light_level,
                                 &clipped_line,
                                 bottom.start.x,
                                 bottom.end.x,
@@ -916,6 +944,7 @@ impl Renderer<'_> {
                 seg.offset,
                 offset_y,
                 &front_sidedef.middle_texture,
+                front_sector.light_level,
                 &floor_flat,
                 &ceiling_flat,
                 front_sector.floor_height,
@@ -937,6 +966,7 @@ impl Renderer<'_> {
                 seg.offset,
                 0,
                 &front_sidedef.middle_texture,
+                front_sector.light_level,
                 &floor_flat,
                 &ceiling_flat,
                 front_sector.floor_height,
@@ -965,6 +995,7 @@ impl Renderer<'_> {
                     seg.offset,
                     offset_y,
                     &front_sidedef.lower_texture,
+                    front_sector.light_level,
                     &floor_flat,
                     &ceiling_flat,
                     front_sector.floor_height,
@@ -994,6 +1025,7 @@ impl Renderer<'_> {
                     seg.offset,
                     offset_y,
                     &front_sidedef.upper_texture,
+                    front_sector.light_level,
                     &floor_flat,
                     &ceiling_flat,
                     front_sector.floor_height,
