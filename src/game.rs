@@ -47,6 +47,7 @@ pub const AVG_TICKS_MAXSAMPLES: u32 = 16;
 struct AvgTicksCounter {
     index: usize,
     sum: f32,
+    rolling_sum: f32,
     list: Vec<f32>, // A circular buffer of length AVG_TICKS_MAXSAMPLES
 }
 
@@ -57,13 +58,15 @@ impl AvgTicksCounter {
         AvgTicksCounter {
             index: 0,
             sum: 0.0,
+            rolling_sum: 0.0,
             list: list,
         }
     }
 
     fn get_avg_ticks(&mut self, new_tick: f32) -> f32 {
-        self.sum -= self.list[self.index];
-        self.sum += new_tick;
+        self.sum += self.list[self.index];
+        self.rolling_sum -= self.list[self.index];
+        self.rolling_sum += new_tick;
         self.list[self.index] = new_tick;
 
         self.index += 1;
@@ -71,7 +74,7 @@ impl AvgTicksCounter {
             self.index = 0;
         }
 
-        return self.sum as f32 / AVG_TICKS_MAXSAMPLES as f32;
+        return self.rolling_sum as f32 / AVG_TICKS_MAXSAMPLES as f32;
     }
 
     fn get_fps(&mut self, new_tick: f32) -> f32 {
@@ -393,6 +396,7 @@ impl Game {
                     &mut self.flats,
                     &mut self.palette,
                     &self.player,
+                    self.avg_ticks_counter.sum,
                 )
                 .render();
 

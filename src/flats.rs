@@ -12,6 +12,7 @@ pub const FLAT_SIZE: i16 = 64;
 pub struct Flats {
     map: HashMap<String, Rc<Flat>>, // The reference counted flats
     wad_file: Rc<WadFile>,          // Needed to be able to lazy load the flats
+    animated_flats: HashMap<String, Vec<String>>, // A map of texture name to a list of textures
 }
 
 // A 64x64 pixel flat
@@ -22,9 +23,69 @@ pub struct Flat {
 
 impl Flats {
     pub fn new(wad_file: &Rc<WadFile>) -> Flats {
+        // Lists of animated flats
+        // https://doomwiki.org/wiki/Animated_flat
+        // Define in doom p_spec.c
+
+        let animated_flats_lists: Vec<Vec<String>> = vec![
+            vec!["NUKAGE1".into(), "NUKAGE2".into(), "NUKAGE3".into()],
+            vec![
+                "FWATER1".into(),
+                "FWATER2".into(),
+                "FWATER3".into(),
+                "FWATER4".into(),
+            ],
+            vec![
+                "SWATER1".into(),
+                "SWATER2".into(),
+                "SWATER3".into(),
+                "SWATER4".into(),
+            ],
+            vec![
+                "LAVA1".into(),
+                "LAVA2".into(),
+                "LAVA3".into(),
+                "LAVA4".into(),
+            ],
+            vec!["BLOOD1".into(), "BLOOD2".into(), "BLOOD3".into()],
+            vec![
+                "RROCK05".into(),
+                "RROCK06".into(),
+                "RROCK07".into(),
+                "RROCK08".into(),
+            ],
+            vec![
+                "SLIME01".into(),
+                "SLIME02".into(),
+                "SLIME03".into(),
+                "SLIME04".into(),
+            ],
+            vec![
+                "SLIME05".into(),
+                "SLIME06".into(),
+                "SLIME07".into(),
+                "SLIME08".into(),
+            ],
+            vec![
+                "SLIME09".into(),
+                "SLIME10".into(),
+                "SLIME11".into(),
+                "SLIME12".into(),
+            ],
+        ];
+
+        // Make a map from texture name to list of belonging textures in the animation
+        let mut animated_flats = HashMap::new();
+        for list in &animated_flats_lists {
+            for texture_name in list {
+                animated_flats.insert(texture_name.to_string(), list.clone());
+            }
+        }
+
         Flats {
             wad_file: Rc::clone(wad_file),
             map: HashMap::new(),
+            animated_flats,
         }
     }
 
@@ -36,6 +97,17 @@ impl Flats {
         }
 
         Rc::clone(self.map.get(name).unwrap())
+    }
+
+    // Get a texture which may be animated
+    pub fn get_animated(&mut self, name: &str, timestamp: f32) -> Rc<Flat> {
+        if let Some(list) = self.animated_flats.get(name) {
+            // Cycle 3 times a second
+            let cycle = ((timestamp - f32::trunc(timestamp)) * 3.0) as usize;
+            self.get(&list[cycle].clone())
+        } else {
+            self.get(name)
+        }
     }
 }
 

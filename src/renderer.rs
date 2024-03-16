@@ -40,6 +40,7 @@ pub struct Renderer<'a> {
     flats: &'a mut Flats,
     palette: &'a mut Palette,
     player: &'a Player,
+    ticks: f32,
     hor_ocl: [bool; SCREEN_WIDTH as usize], // Horizontal occlusions
     floor_ver_ocl: [i16; SCREEN_WIDTH as usize], // Vertical occlusions for the floor
     ceiling_ver_ocl: [i16; SCREEN_WIDTH as usize], // Vertical occlusions for the ceiling
@@ -507,6 +508,7 @@ impl Renderer<'_> {
         flats: &'a mut Flats,
         palette: &'a mut Palette,
         player: &'a Player,
+        ticks: f32,
     ) -> Renderer<'a> {
         Renderer {
             pixels,
@@ -516,6 +518,7 @@ impl Renderer<'_> {
             flats,
             palette,
             player,
+            ticks,
             hor_ocl: [false; SCREEN_WIDTH as usize],
             floor_ver_ocl: [SCREEN_HEIGHT as i16; SCREEN_WIDTH as usize],
             ceiling_ver_ocl: [-1; SCREEN_WIDTH as usize],
@@ -916,8 +919,12 @@ impl Renderer<'_> {
             return;
         }
 
-        let floor_flat = self.flats.get(front_sector.floor_texture.as_str());
-        let ceiling_flat = self.flats.get(front_sector.ceiling_texture.as_str());
+        let floor_flat = self
+            .flats
+            .get_animated(front_sector.floor_texture.as_str(), self.ticks);
+        let ceiling_flat = self
+            .flats
+            .get_animated(front_sector.ceiling_texture.as_str(), self.ticks);
 
         let mut draw_ceiling = true;
 
