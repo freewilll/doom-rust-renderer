@@ -409,8 +409,18 @@ fn draw_sky(
     }
 }
 
-fn diminish_color(color: &Color, light_level: i16) -> Color {
-    let factor = light_level as f32 / 255.0;
+fn diminish_color(color: &Color, light_level: i16, distance: i16) -> Color {
+    let mut factor = light_level as f32 / 255.0; // Start with the sector light level
+
+    // Reduce the light based on the distance
+    // See r_plane.c
+    // The factor below is based on a visual feel of how things look rather
+    // then a calculation of what the actual doom code does.
+    let dinishing_factor: f32 = 1.0 / (16.0 * 256.0);
+    factor -= distance as f32 * dinishing_factor;
+    if factor < 0.0 {
+        factor = 0.0
+    };
 
     Color::RGB(
         (color.r as f32 * factor as f32) as u8,
@@ -460,7 +470,7 @@ fn draw_visplane(
             ty = ty & (FLAT_SIZE - 1);
 
             let color = palette.colors[visplane.flat.pixels[ty as usize][tx as usize] as usize];
-            let diminished_color = diminish_color(&color, visplane.light_level);
+            let diminished_color = diminish_color(&color, visplane.light_level, wx as i16);
 
             pixels.set(x as usize, y as usize, &diminished_color);
         }
@@ -578,6 +588,10 @@ impl Renderer<'_> {
         }
         tx = tx % texture.width;
 
+        // z coordinate of column in world coordinates
+        let z = (((1.0 - ax) * (uz0 / uz0) + ax * (uz1 / uz1))
+            / ((1.0 - ax) * (1.0 / uz0) + ax * (1.0 / uz1))) as i16;
+
         for y in clipped_top_y..clipped_bottom_y + 1 {
             // Calculate texture y
             // A simple linear interpolation will do; the x distance is not a factor
@@ -591,7 +605,7 @@ impl Renderer<'_> {
             ty = ty % texture.height;
 
             let color = self.palette.colors[texture.pixels[ty as usize][tx as usize] as usize];
-            let diminished_color = diminish_color(&color, light_level);
+            let diminished_color = diminish_color(&color, light_level, z);
 
             self.pixels.set(x as usize, y as usize, &diminished_color);
         }
@@ -601,22 +615,22 @@ impl Renderer<'_> {
     // This may involve drawing it, but might also involte processing occlusions and visplanes.
     fn process_sidedef(
         &mut self,
-        clipped_line: &ClippedLine, // The clipped line in viewport coordinates
+        clipped_line: &ClippedLine, // The clipped line in viewport coords
         sidedef: &Sidedef,          // The sidedef
-        bottom_height: f32, // Height of the bottom of the clipped line in viewport coordinates
-        top_height: f32,    // Height of the top of the clipped line in viewport coordinates
-        seg_offset: i16,    // Distance along linedef to start of seg
-        offset_y: i32,      // Texture offset in viewport coordinates
-        texture_name: &str, // Optional texture
-        light_level: i16,   // Sector light level
-        floor_flat: &Rc<Flat>, // Hash of the floor texture
-        ceiling_flat: &Rc<Flat>, // Hash of the ceiling texture
-        floor_height: i16,  // Height of the floor
-        ceiling_height: i16, // Height of the ceiling
-        is_whole_sidedef: bool, // For occlusion & visplane processing
-        is_lower_wall: bool, // For portals: the rendered piece of wall
-        is_upper_wall: bool, // For portals: the rendered piece of wall
-        draw_ceiling: bool, // Set to false in a special case for sky texture
+        bottom_height: f32,         // Height of the bottom of the clipped line in viewport coords
+        top_height: f32,            // Height of the top of the clipped line in viewport coords
+        seg_offset: i16,            // Distance along linedef to start of seg
+        offset_y: i32,              // Texture offset in viewport coords
+        texture_name: &str,         // Optional texture
+        light_level: i16,           // Sector light level
+        floor_flat: &Rc<Flat>,      // Floor texture
+        ceiling_flat: &Rc<Flat>,    // Ceiling texture
+        floor_height: i16,          // Height of the floor
+        ceiling_height: i16,        // Height of the ceiling
+        is_whole_sidedef: bool,     // For occlusion & visplane processing
+        is_lower_wall: bool,        // For portals: the rendered piece of wall
+        is_upper_wall: bool,        // For portals: the rendered piece of wall
+        draw_ceiling: bool,         // Set to false in a special case for sky texture
     ) {
         let bottom = make_sidedef_non_vertical_line(&clipped_line.line, bottom_height);
         let top = make_sidedef_non_vertical_line(&clipped_line.line, top_height);
