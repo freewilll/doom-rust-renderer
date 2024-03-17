@@ -3,7 +3,6 @@ use crate::wad::{MapLumpName, WadFile};
 use std::rc::Rc;
 
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct SubSector {
     pub segs: Vec<Rc<Seg>>,
 }

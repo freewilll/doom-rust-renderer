@@ -4,7 +4,6 @@ use std::fmt;
 use std::ops::{Add, Sub};
 use std::rc::Rc;
 
-#[allow(dead_code)]
 #[derive(Clone)]
 pub struct Vertex {
     pub x: f32,

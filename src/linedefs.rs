@@ -19,7 +19,6 @@ impl Flags {
 }
 
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct Linedef {
     pub id: i16,
     pub start_vertex: Rc<Vertex>,

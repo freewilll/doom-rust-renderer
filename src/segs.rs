@@ -4,7 +4,6 @@ use crate::wad::{MapLumpName, WadFile};
 use std::rc::Rc;
 
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct Seg {
     pub id: i16,
     pub start_vertex: Rc<Vertex>, // Start

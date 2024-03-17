@@ -27,7 +27,6 @@ impl NodeChild {
 }
 
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct Node {
     pub x: f32,                          // x coordinate of partition line start
     pub y: f32,                          // x coordinate of partition line start

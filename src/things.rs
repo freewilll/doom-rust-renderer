@@ -2,13 +2,11 @@ use crate::wad::{MapLumpName, WadFile};
 use std::rc::Rc;
 
 #[derive(Debug)]
-#[allow(dead_code)]
 pub enum ThingTypes {
     Player1Start = 1,
 }
 
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct Thing {
     pub x: f32,
     pub y: f32,

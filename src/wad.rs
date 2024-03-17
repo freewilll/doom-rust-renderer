@@ -62,19 +62,10 @@ impl Header {
 }
 
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct DirEntry {
     pub name: String, // Lump name
     pub offset: u32,  // Lump offset in file
     pub size: u32,    // Lump size
-}
-
-// Names of wall patches + offsets into the WAD file
-#[derive(Debug)]
-#[allow(dead_code)]
-pub struct Pname {
-    pub name: String,            // Lump name
-    pub wad_offset: Option<u32>, // Offset in WAD file (None if the lump doesn't exist)
 }
 
 // A loaded WAD file

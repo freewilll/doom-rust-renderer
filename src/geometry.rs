@@ -1,7 +1,6 @@
 use crate::vertexes::Vertex;
 
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct BoundingBox {
     pub top: f32,
     pub bottom: f32,
@@ -39,7 +38,6 @@ impl BoundingBox {
 }
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct Line {
     pub start: Vertex,
     pub end: Vertex,
