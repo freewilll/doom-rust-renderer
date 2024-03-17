@@ -222,7 +222,7 @@ fn clip_to_viewport(line: &Line) -> Option<ClippedLine> {
         return None;
     }
 
-    // Eliminate lines that instersect the viewport but are outside it
+    // Eliminate lines that intersect the viewport but are outside it
     if (right_intersected && start_outside_right && end_outside_right)
         || (left_intersected && start_outside_left && end_outside_left)
     {
@@ -417,8 +417,8 @@ fn diminish_color(color: &Color, light_level: i16, distance: i16) -> Color {
     // See r_plane.c
     // The factor below is based on a visual feel of how things look rather
     // then a calculation of what the actual doom code does.
-    let dinishing_factor: f32 = 1.0 / (16.0 * 256.0);
-    factor -= distance as f32 * dinishing_factor;
+    let dimishing_factor: f32 = 1.0 / (16.0 * 256.0);
+    factor -= distance as f32 * dimishing_factor;
     if factor < 0.0 {
         factor = 0.0
     };
@@ -615,7 +615,7 @@ impl Renderer<'_> {
     }
 
     // Process a part of a sidedef.
-    // This may involve drawing it, but might also involte processing occlusions and visplanes.
+    // This may involve drawing it, but might also involve processing occlusions and visplanes.
     fn process_sidedef(
         &mut self,
         clipped_line: &ClippedLine, // The clipped line in viewport coords
