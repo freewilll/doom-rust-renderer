@@ -103,7 +103,7 @@ impl Flats {
     pub fn get_animated(&mut self, name: &str, timestamp: f32) -> Rc<Flat> {
         if let Some(list) = self.animated_flats.get(name) {
             // Cycle 3 times a second
-            let cycle = ((timestamp - f32::trunc(timestamp)) * 3.0) as usize;
+            let cycle = ((timestamp * 3.0) as usize) % list.len();
             self.get(&list[cycle].clone())
         } else {
             self.get(name)
