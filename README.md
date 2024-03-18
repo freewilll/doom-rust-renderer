@@ -34,7 +34,7 @@ cargo run -r -- --help
 ```
 
 # Features
-- Solid walls
+- Solid & semi-transparent walls
 - Floors/ceiling + sky
 - Sector lighting
 - Light diminishing
@@ -43,9 +43,9 @@ cargo run -r -- --help
 - Moving around with keyboard: arrows, shift, strafe, turbo
 
 # Things missing from the renderer
-- Semi-transparent wall textures
 - Animated wall textures
 - Things
+- Blinking lights
 
 # Links
 - [Game Engine Black Book: DOOM](https://archive.org/details/gebbdoome)

@@ -45,6 +45,7 @@ pub struct Renderer<'a> {
     floor_ver_ocl: [i16; SCREEN_WIDTH as usize], // Vertical occlusions for the floor
     ceiling_ver_ocl: [i16; SCREEN_WIDTH as usize], // Vertical occlusions for the ceiling
     vis_planes: Vec<Visplane>,
+    two_sided_textures: Vec<TwoSidedTextureRenderDetails>,
 }
 
 #[derive(Debug, Clone)]
@@ -88,6 +89,7 @@ impl SdlLine {
     }
 }
 
+#[derive(Clone)]
 struct ClippedLine {
     line: Line,
     start_offset: f32, // The amount the line was clipped by at the start/left end
@@ -375,6 +377,164 @@ impl SidedefVisPlanes {
     }
 }
 
+// Draw a vertical line of a texture
+// See 5.12.5 Perspective-Correct Texture Mapping in the game engine black book
+fn render_vertical_texture_line(
+    pixels: &mut Pixels,
+    palette: &Palette,
+    sidedef: &Sidedef,          // The sidedef
+    texture: &Texture,          // The texture
+    light_level: i16,           // Sector light level
+    clipped_line: &ClippedLine, // The clipped line in viewport coordinates
+    start_x: i32,               // The clipped line x start in screen coordinates
+    end_x: i32,                 // The clipped line x end in screen coordinates
+    bottom_height: f32,         // The (potentially not-drawn) bottom in viewport coordinates
+    top_height: f32,            // The (potentially not-drawn) top in viewport coordinates
+    offset_x: i16,              // Texture offset in viewport coordinates
+    offset_y: i16,              // Texture offset in viewport coordinates
+    x: i32,                     // The x coordinate in screen coordinate
+    clipped_top_y: i32,         // The y region to draw in screen coordinates
+    clipped_bottom_y: i32,      // The y region to draw in screen coordinates
+    bottom_y: i32,              // Full vertical line in screen coordinates
+    top_y: i32,                 // Full vertical line in screen coordinates
+) {
+    let len = clipped_line.line.length();
+
+    let (ux0, ux1) = (0.0, len);
+    let (uy0, uy1) = (0.0, top_height - bottom_height);
+    let (uz0, uz1) = (clipped_line.line.start.x, clipped_line.line.end.x);
+
+    // Determine texture x tx. This only needs doing once outside
+    // of the y-loop.
+    let ax = (x - start_x) as f32 / (end_x - start_x) as f32;
+    let mut tx = (((1.0 - ax) * (ux0 / uz0) + ax * (ux1 / uz1))
+        / ((1.0 - ax) * (1.0 / uz0) + ax * (1.0 / uz1))) as i16;
+    tx = clipped_line.start_offset as i16 + offset_x + sidedef.x_offset as i16 + tx;
+    if tx < 0 {
+        tx += texture.width * (1 - tx / texture.width)
+    }
+    tx = tx % texture.width;
+
+    // z coordinate of column in world coordinates
+    let z = (((1.0 - ax) * (uz0 / uz0) + ax * (uz1 / uz1))
+        / ((1.0 - ax) * (1.0 / uz0) + ax * (1.0 / uz1))) as i16;
+
+    for y in clipped_top_y..clipped_bottom_y + 1 {
+        // Calculate texture y
+        // A simple linear interpolation will do; the x distance is not a factor
+        let ay = (y - top_y) as f32 / (bottom_y - top_y) as f32;
+        let mut ty = (texture.height as f32 + (1.0 - ay) * uy0 + ay * uy1) as i16;
+
+        ty = offset_y + sidedef.y_offset as i16 + ty;
+        if ty < 0 {
+            ty += texture.height * (1 - ty / texture.height)
+        }
+        ty = ty % texture.height;
+
+        if let Some(color_value) = texture.pixels[ty as usize][tx as usize] {
+            let color = palette.colors[color_value as usize];
+            let diminished_color = diminish_color(&color, light_level, z);
+
+            pixels.set(x as usize, y as usize, &diminished_color);
+        }
+    }
+}
+
+struct TwoSidedColumn {
+    x: i32,                // The x coordinate in screen coordinate
+    clipped_top_y: i32,    // The y region to draw in screen coordinates
+    clipped_bottom_y: i32, // The y region to draw in screen coordinates
+    bottom_y: i32,         // Full vertical line in screen coordinates
+    top_y: i32,            // Full vertical line in screen coordinates
+}
+
+// Insane amount of context that is needed to call render_vertical_texture_line
+struct TwoSidedTextureRenderDetails {
+    sidedef: Rc<Sidedef>,         // The sidedef
+    texture: Option<Rc<Texture>>, // The texture
+    light_level: i16,             // Sector light level
+    clipped_line: ClippedLine,    // The clipped line in viewport coordinates
+    start_x: i32,                 // The clipped line x start in screen coordinates
+    end_x: i32,                   // The clipped line x end in screen coordinates
+    bottom_height: f32,           // The (potentially not-drawn) bottom in viewport coordinates
+    top_height: f32,              // The (potentially not-drawn) top in viewport coordinates
+    offset_x: i16,                // Texture offset in viewport coordinates
+    offset_y: i16,                // Texture offset in viewport coordinates
+    columns: Vec<TwoSidedColumn>, // The columns
+}
+
+impl TwoSidedTextureRenderDetails {
+    fn new<'a>(
+        sidedef: Rc<Sidedef>,         // The sidedef
+        texture: Option<Rc<Texture>>, // The texture
+        light_level: i16,             // Sector light level
+        clipped_line: ClippedLine,    // The clipped line in viewport coordinates
+        start_x: i32,                 // The clipped line x start in screen coordinates
+        end_x: i32,                   // The clipped line x end in screen coordinates
+        bottom_height: f32,           // The (potentially not-drawn) bottom in viewport coordinates
+        top_height: f32,              // The (potentially not-drawn) top in viewport coordinates
+        offset_x: i16,                // Texture offset in viewport coordinates
+        offset_y: i16,                // Texture offset in viewport coordinates
+    ) -> TwoSidedTextureRenderDetails {
+        TwoSidedTextureRenderDetails {
+            sidedef,
+            texture,
+            light_level,
+            clipped_line,
+            start_x,
+            end_x,
+            bottom_height,
+            top_height,
+            offset_x,
+            offset_y,
+            columns: vec![],
+        }
+    }
+
+    fn add_column(
+        &mut self,
+        x: i32,                // The x coordinate in screen coordinate
+        clipped_top_y: i32,    // The y region to draw in screen coordinates
+        clipped_bottom_y: i32, // The y region to draw in screen coordinates
+        bottom_y: i32,         // Full vertical line in screen coordinates
+        top_y: i32,            // Full vertical line in screen coordinates
+    ) {
+        self.columns.push(TwoSidedColumn {
+            x,
+            clipped_top_y,
+            clipped_bottom_y,
+            bottom_y,
+            top_y,
+        });
+    }
+
+    fn render(&self, pixels: &mut Pixels, palette: &Palette) {
+        if let Some(texture) = &self.texture {
+            for column in &self.columns {
+                render_vertical_texture_line(
+                    pixels,
+                    palette,
+                    &self.sidedef,
+                    &texture,
+                    self.light_level,
+                    &self.clipped_line,
+                    self.start_x,
+                    self.end_x,
+                    self.bottom_height,
+                    self.top_height,
+                    self.offset_x,
+                    self.offset_y,
+                    column.x,
+                    column.clipped_top_y,
+                    column.clipped_bottom_y,
+                    column.bottom_y,
+                    column.top_y,
+                );
+            }
+        }
+    }
+}
+
 fn draw_sky(
     pixels: &mut Pixels,
     palette: &Palette,
@@ -524,6 +684,7 @@ impl Renderer<'_> {
             floor_ver_ocl: [SCREEN_HEIGHT as i16; SCREEN_WIDTH as usize],
             ceiling_ver_ocl: [-1; SCREEN_WIDTH as usize],
             vis_planes: Vec::new(),
+            two_sided_textures: Vec::new(),
         }
     }
 
@@ -536,6 +697,12 @@ impl Renderer<'_> {
                 Rc::clone(&self.sky_texture),
                 &visplane,
             );
+        }
+    }
+
+    fn draw_two_sided_textures(&mut self) {
+        for ts_texture in &mut self.two_sided_textures {
+            ts_texture.render(&mut self.pixels, &self.palette);
         }
     }
 
@@ -555,74 +722,12 @@ impl Renderer<'_> {
         self.ceiling_ver_ocl[x as usize] = SCREEN_HEIGHT as i16 / 2;
     }
 
-    // Draw a vertical line of a texture
-    // See 5.12.5 Perspective-Correct Texture Mapping in the game engine black book
-    fn render_vertical_texture_line(
-        &mut self,
-        sidedef: &Sidedef,          // The sidedef
-        texture: &Texture,          // The texture
-        light_level: i16,           // Sector light level
-        clipped_line: &ClippedLine, // The clipped line in viewport coordinates
-        start_x: i32,               // The clipped line x start in screen coordinates
-        end_x: i32,                 // The clipped line x end in screen coordinates
-        x: i32,                     // The x coordinate in screen coordinate
-        clipped_top_y: i32,         // The y region to draw in screen coordinates
-        clipped_bottom_y: i32,      // The y region to draw in screen coordinates
-        bottom_height: f32,         // The (potentially not-drawn) bottom in viewport coordinates
-        top_height: f32,            // The (potentially not-drawn) top in viewport coordinates
-        bottom_y: i32,              // Full vertical line in screen coordinates
-        top_y: i32,                 // Full vertical line in screen coordinates
-        offset_x: i16,              // Texture offset in viewport coordinates
-        offset_y: i16,              // Texture offset in viewport coordinates
-    ) {
-        let len = clipped_line.line.length();
-
-        let (ux0, ux1) = (0.0, len);
-        let (uy0, uy1) = (0.0, top_height - bottom_height);
-        let (uz0, uz1) = (clipped_line.line.start.x, clipped_line.line.end.x);
-
-        // Determine texture x tx. This only needs doing once outside
-        // of the y-loop.
-        let ax = (x - start_x) as f32 / (end_x - start_x) as f32;
-        let mut tx = (((1.0 - ax) * (ux0 / uz0) + ax * (ux1 / uz1))
-            / ((1.0 - ax) * (1.0 / uz0) + ax * (1.0 / uz1))) as i16;
-        tx = clipped_line.start_offset as i16 + offset_x + sidedef.x_offset as i16 + tx;
-        if tx < 0 {
-            tx += texture.width * (1 - tx / texture.width)
-        }
-        tx = tx % texture.width;
-
-        // z coordinate of column in world coordinates
-        let z = (((1.0 - ax) * (uz0 / uz0) + ax * (uz1 / uz1))
-            / ((1.0 - ax) * (1.0 / uz0) + ax * (1.0 / uz1))) as i16;
-
-        for y in clipped_top_y..clipped_bottom_y + 1 {
-            // Calculate texture y
-            // A simple linear interpolation will do; the x distance is not a factor
-            let ay = (y - top_y) as f32 / (bottom_y - top_y) as f32;
-            let mut ty = (texture.height as f32 + (1.0 - ay) * uy0 + ay * uy1) as i16;
-
-            ty = offset_y + sidedef.y_offset as i16 + ty;
-            if ty < 0 {
-                ty += texture.height * (1 - ty / texture.height)
-            }
-            ty = ty % texture.height;
-
-            if let Some(color_value) = texture.pixels[ty as usize][tx as usize] {
-                let color = self.palette.colors[color_value as usize];
-                let diminished_color = diminish_color(&color, light_level, z);
-
-                self.pixels.set(x as usize, y as usize, &diminished_color);
-            }
-        }
-    }
-
     // Process a part of a sidedef.
     // This may involve drawing it, but might also involve processing occlusions and visplanes.
     fn process_sidedef(
         &mut self,
         clipped_line: &ClippedLine, // The clipped line in viewport coords
-        sidedef: &Sidedef,          // The sidedef
+        sidedef: Rc<Sidedef>,       // The sidedef
         bottom_height: f32,         // Height of the bottom of the clipped line in viewport coords
         top_height: f32,            // Height of the top of the clipped line in viewport coords
         seg_offset: i16,            // Distance along linedef to start of seg
@@ -633,15 +738,16 @@ impl Renderer<'_> {
         ceiling_flat: &Rc<Flat>,    // Ceiling texture
         floor_height: i16,          // Height of the floor
         ceiling_height: i16,        // Height of the ceiling
-        is_whole_sidedef: bool,     // For occlusion & visplane processing
+        only_occlusions: bool,      // Don't draw, only add visplanes + occlusions
         is_lower_wall: bool,        // For portals: the rendered piece of wall
         is_upper_wall: bool,        // For portals: the rendered piece of wall
         draw_ceiling: bool,         // Set to false in a special case for sky texture
+        is_two_sided_middle_wall: bool, // Two sided middle texture, add to list to draw later, don't add occlusions
     ) {
         let bottom = make_sidedef_non_vertical_line(&clipped_line.line, bottom_height);
         let top = make_sidedef_non_vertical_line(&clipped_line.line, top_height);
 
-        let texture = if !is_whole_sidedef && texture_name != "-" {
+        let texture = if texture_name != "-" {
             Some(self.textures.get(texture_name))
         } else {
             None
@@ -680,7 +786,20 @@ impl Renderer<'_> {
         );
 
         // Does the wall from from floor to ceiling?
-        let is_full_height_wall = !is_lower_wall && !is_upper_wall && !is_whole_sidedef;
+        let is_full_height_wall = !is_lower_wall && !is_upper_wall && !only_occlusions;
+
+        let mut ts_details = TwoSidedTextureRenderDetails::new(
+            Rc::clone(&sidedef),
+            texture.clone(),
+            light_level,
+            clipped_line.clone(),
+            bottom.start.x,
+            bottom.end.x,
+            bottom_height,
+            top_height,
+            seg_offset,
+            offset_y as i16,
+        );
 
         for x in bottom.start.x as i16..bottom.end.x as i16 + 1 {
             if !self.hor_ocl[x as usize] {
@@ -711,40 +830,57 @@ impl Renderer<'_> {
 
                 // Draw the vertical line unless it's transparent
                 // The middle wall isn't rendered, it's only used to create visplanes.
-                if !is_whole_sidedef && in_ver_clipped_area {
-                    match texture {
-                        None => {
-                            // Draw a missing texture as white
-                            self.pixels.draw_vertical_line(
-                                x.into(),
-                                clipped_top_y.into(),
-                                clipped_bottom_y.into(),
-                                &Color::RGB(255, 255, 255),
-                            );
-                        }
-                        Some(ref texture) => {
-                            self.render_vertical_texture_line(
-                                &sidedef,
-                                &texture,
-                                light_level,
-                                &clipped_line,
-                                bottom.start.x,
-                                bottom.end.x,
-                                x.into(),
-                                clipped_top_y.into(),
-                                clipped_bottom_y.into(),
-                                bottom_height,
-                                top_height,
-                                bottom_y.into(),
-                                top_y.into(),
-                                seg_offset,
-                                offset_y as i16,
-                            );
-                        }
-                    };
+                if in_ver_clipped_area {
+                    if !is_two_sided_middle_wall && !only_occlusions {
+                        match texture {
+                            None => {
+                                // Draw a missing texture as white
+                                self.pixels.draw_vertical_line(
+                                    x.into(),
+                                    clipped_top_y.into(),
+                                    clipped_bottom_y.into(),
+                                    &Color::RGB(255, 255, 255),
+                                );
+                            }
+                            Some(ref texture) => {
+                                render_vertical_texture_line(
+                                    // Wall/portal details
+                                    &mut self.pixels,
+                                    &self.palette,
+                                    &sidedef,
+                                    &texture,
+                                    light_level,
+                                    &clipped_line,
+                                    bottom.start.x,
+                                    bottom.end.x,
+                                    bottom_height,
+                                    top_height,
+                                    seg_offset,
+                                    offset_y as i16,
+                                    // Column details
+                                    x.into(),
+                                    clipped_top_y.into(),
+                                    clipped_bottom_y.into(),
+                                    bottom_y.into(),
+                                    top_y.into(),
+                                );
+                            }
+                        };
+                    } else if is_two_sided_middle_wall {
+                        ts_details.add_column(
+                            x.into(),
+                            clipped_top_y.into(),
+                            clipped_bottom_y.into(),
+                            bottom_y.into(),
+                            top_y.into(),
+                        );
+                    }
                 }
 
-                if in_ver_clipped_area && (is_full_height_wall || is_whole_sidedef) {
+                if !is_two_sided_middle_wall
+                    && in_ver_clipped_area
+                    && (is_full_height_wall || only_occlusions)
+                {
                     let mut visplane_added = false;
                     // Process bottom visplane
                     if clipped_bottom_y < floor_ver_ocl {
@@ -755,7 +891,8 @@ impl Renderer<'_> {
                     }
 
                     // Process top visplane
-                    if draw_ceiling && clipped_top_y > ceiling_ver_ocl {
+                    if !is_two_sided_middle_wall && draw_ceiling && clipped_top_y > ceiling_ver_ocl
+                    {
                         if clipped_top_y != -1 {
                             if draw_ceiling {
                                 sidedef_vis_planes.add_top_point(x, ceiling_ver_ocl, clipped_top_y);
@@ -768,8 +905,9 @@ impl Renderer<'_> {
                         // Line is occluded, flush visplanes
                         sidedef_vis_planes.flush(self);
                     }
-                } else if !in_ver_clipped_area
-                    && (is_full_height_wall || is_whole_sidedef)
+                } else if !is_two_sided_middle_wall
+                    && !in_ver_clipped_area
+                    && (is_full_height_wall || only_occlusions)
                     && floor_ver_ocl > ceiling_ver_ocl
                 {
                     // The sidedef is occluded. However, there is still is a vertical
@@ -794,7 +932,7 @@ impl Renderer<'_> {
                     }
                 }
 
-                if in_ver_clipped_area && is_whole_sidedef {
+                if !is_two_sided_middle_wall && in_ver_clipped_area && only_occlusions {
                     self.floor_ver_ocl[x as usize] = clipped_bottom_y;
 
                     if draw_ceiling {
@@ -803,11 +941,11 @@ impl Renderer<'_> {
                 }
 
                 // Update vertical occlusions
-                if in_ver_clipped_area && is_lower_wall {
+                if !is_two_sided_middle_wall && in_ver_clipped_area && is_lower_wall {
                     self.floor_ver_ocl[x as usize] = clipped_top_y;
                 }
 
-                if in_ver_clipped_area && is_upper_wall {
+                if !is_two_sided_middle_wall && in_ver_clipped_area && is_upper_wall {
                     self.ceiling_ver_ocl[x as usize] = clipped_bottom_y;
                 }
             } else {
@@ -815,13 +953,17 @@ impl Renderer<'_> {
                 sidedef_vis_planes.flush(self);
             }
 
-            if is_full_height_wall {
+            if !is_two_sided_middle_wall && is_full_height_wall {
                 // A vertical line occludes everything behind it
                 self.occlude_vertical_line(x);
             }
         }
 
         sidedef_vis_planes.flush(self);
+
+        if is_two_sided_middle_wall {
+            self.two_sided_textures.push(ts_details);
+        }
     }
 
     // Draw a seg
@@ -962,7 +1104,7 @@ impl Renderer<'_> {
             // Draw the solid wall texture
             self.process_sidedef(
                 &clipped_line,
-                &front_sidedef,
+                Rc::clone(&front_sidedef),
                 floor_height - player_height,
                 ceiling_height - player_height,
                 seg.offset,
@@ -977,14 +1119,15 @@ impl Renderer<'_> {
                 false,
                 false,
                 draw_ceiling,
+                false,
             );
         } else {
-            // Draw a portal's lower and upper textures (if present)
+            // Process a portal
 
-            // Process the portal's bounds without drawing it
+            // Process the portal's full height, only occlusions + visplanes are added
             self.process_sidedef(
                 &clipped_line,
-                &front_sidedef,
+                Rc::clone(&front_sidedef),
                 floor_height - player_height,
                 ceiling_height - player_height,
                 seg.offset,
@@ -995,10 +1138,45 @@ impl Renderer<'_> {
                 &ceiling_flat,
                 front_sector.floor_height,
                 front_sector.ceiling_height,
-                true, // Only process occlusions and visplanes
+                true, // Only add occlusions/visplanes
                 false,
                 false,
                 draw_ceiling,
+                false,
+            );
+
+            // Process the middle bit, adding it to the list of two sided
+            // textures to be drawn later together with the things.
+            // Occlusions + visplanes are already dealt with.
+            let mut mid_texture_floor_height = floor_height;
+            let mut mid_texture_ceiling_height = ceiling_height;
+
+            if let Some(portal_bottom_height) = opt_portal_bottom_height {
+                mid_texture_floor_height = portal_bottom_height;
+            }
+
+            if let Some(portal_top_height) = opt_portal_top_height {
+                mid_texture_ceiling_height = portal_top_height;
+            }
+
+            self.process_sidedef(
+                &clipped_line,
+                Rc::clone(&front_sidedef),
+                mid_texture_floor_height - player_height,
+                mid_texture_ceiling_height - player_height,
+                seg.offset,
+                0,
+                &front_sidedef.middle_texture,
+                front_sector.light_level,
+                &floor_flat,
+                &ceiling_flat,
+                front_sector.floor_height,
+                front_sector.ceiling_height,
+                false,
+                false,
+                false,
+                draw_ceiling,
+                true, // is_two_sided_middle_wall
             );
 
             // Process the lower texture
@@ -1013,7 +1191,7 @@ impl Renderer<'_> {
 
                 self.process_sidedef(
                     &clipped_line,
-                    &front_sidedef,
+                    Rc::clone(&front_sidedef),
                     floor_height - player_height,
                     portal_bottom_height - player_height,
                     seg.offset,
@@ -1028,6 +1206,7 @@ impl Renderer<'_> {
                     true,
                     false,
                     draw_ceiling,
+                    false,
                 );
             }
 
@@ -1043,7 +1222,7 @@ impl Renderer<'_> {
 
                 self.process_sidedef(
                     &clipped_line,
-                    &front_sidedef,
+                    Rc::clone(&front_sidedef),
                     portal_top_height - player_height,
                     ceiling_height - player_height,
                     seg.offset,
@@ -1058,6 +1237,7 @@ impl Renderer<'_> {
                     false,
                     true,
                     draw_ceiling,
+                    false,
                 );
             }
         }
@@ -1110,5 +1290,7 @@ impl Renderer<'_> {
         self.render_node(&root_node);
 
         self.draw_visplanes();
+        self.two_sided_textures.reverse(); // Sort back to front
+        self.draw_two_sided_textures();
     }
 }

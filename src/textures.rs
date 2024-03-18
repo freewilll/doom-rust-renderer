@@ -39,6 +39,7 @@ pub struct TextureDefinition {
 
 // A Texture is a loaded texture, with its pixels populated from the patches
 pub struct Texture {
+    pub name: String,
     pub width: i16,
     pub height: i16,
     pub pixels: Vec<Vec<Option<u8>>>, // Grid of colormap indexes or None if transparent
@@ -158,6 +159,7 @@ impl Textures {
 
         // Load the texture
         let mut texture = Texture {
+            name: name.to_string(),
             width: definition.width,
             height: definition.height,
             pixels: Vec::new(),
