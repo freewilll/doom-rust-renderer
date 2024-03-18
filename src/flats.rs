@@ -120,9 +120,9 @@ impl Flat {
 
         let mut pixels: Vec<Vec<u8>> = Vec::with_capacity(FLAT_SIZE as usize);
         for _ in 0..FLAT_SIZE as usize {
-            let mut arr = Vec::new();
-            arr.resize(FLAT_SIZE as usize, 0u8);
-            pixels.push(arr);
+            let mut row = Vec::new();
+            row.resize(FLAT_SIZE as usize, 0u8);
+            pixels.push(row);
         }
 
         for y in 0..FLAT_SIZE as usize {

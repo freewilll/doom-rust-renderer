@@ -1,3 +1,4 @@
+use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -16,13 +17,13 @@ pub struct Pictures {
 // A picture (aka patch)
 #[allow(dead_code)]
 pub struct Picture {
-    pub name: String,         // The name
-    wad_offset: u32,          // Offset in the WAD file
-    pub width: i16,           // Width of graphic
-    pub height: i16,          // Height of graphic
-    pub left_offset: i16,     // Offset in pixels to the left of the origin
-    pub top_offset: i16,      // Offset in pixels below the origin
-    pub pixels: Vec<Vec<u8>>, // Grid of colormap indexes
+    pub name: String,                 // The name
+    wad_offset: u32,                  // Offset in the WAD file
+    pub width: i16,                   // Width of graphic
+    pub height: i16,                  // Height of graphic
+    pub left_offset: i16,             // Offset in pixels to the left of the origin
+    pub top_offset: i16,              // Offset in pixels below the origin
+    pub pixels: Vec<Vec<Option<u8>>>, // Grid of colormap indexes or None if transparent
 }
 
 impl Pictures {
@@ -59,11 +60,11 @@ impl Picture {
         let left_offset = wad_file.read_i16(offset + 4);
         let top_offset = wad_file.read_i16(offset + 6);
 
-        let mut pixels: Vec<Vec<u8>> = Vec::with_capacity(height as usize);
+        let mut pixels: Vec<Vec<Option<u8>>> = Vec::with_capacity(height as usize);
         for _ in 0..height as usize {
-            let mut arr = Vec::new();
-            arr.resize(width as usize, 0u8);
-            pixels.push(arr);
+            let mut row = Vec::new();
+            row.resize(width as usize, None);
+            pixels.push(row);
         }
 
         let mut picture = Picture {
@@ -103,7 +104,7 @@ impl Picture {
                     let x = column as i32;
                     let y = row as i32 + y_offset as i32;
 
-                    self.pixels[y as usize][x as usize] = value;
+                    self.pixels[y as usize][x as usize] = Some(value);
                 }
 
                 column_offset += length as usize + 4;
@@ -114,13 +115,18 @@ impl Picture {
     // Draw the picture to the top-left corner
     #[allow(dead_code)]
     pub fn test_flat_draw(&self, game: &mut Game) {
+        game.canvas.set_draw_color(Color::RGB(0, 255, 255));
+        let rect = Rect::new(0, 0, self.width as u32 * 4, self.height as u32 * 4);
+        game.canvas.fill_rect(rect).unwrap();
+
         for x in 0..self.width as usize {
             for y in 0..self.height as usize {
-                let value = self.pixels[y][x];
-                let color = game.palette.colors[value as usize];
-                game.canvas.set_draw_color(color);
-                let rect = Rect::new(x as i32 * 4, y as i32 * 4, 4, 4);
-                game.canvas.fill_rect(rect).unwrap();
+                if let Some(value) = self.pixels[y][x] {
+                    let color = game.palette.colors[value as usize];
+                    game.canvas.set_draw_color(color);
+                    let rect = Rect::new(x as i32 * 4, y as i32 * 4, 4, 4);
+                    game.canvas.fill_rect(rect).unwrap();
+                }
             }
         }
     }

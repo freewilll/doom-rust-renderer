@@ -41,7 +41,7 @@ pub struct TextureDefinition {
 pub struct Texture {
     pub width: i16,
     pub height: i16,
-    pub pixels: Vec<Vec<u8>>, // Grid of colormap indexes
+    pub pixels: Vec<Vec<Option<u8>>>, // Grid of colormap indexes or None if transparent
 }
 
 // A struct to handle lazy loaded textures
@@ -72,9 +72,9 @@ impl Texture {
     fn load(&mut self, definition: &mut TextureDefinition, pnames: &Vec<Pname>) {
         self.pixels = Vec::with_capacity(self.height as usize);
         for _ in 0..self.height as usize {
-            let mut arr = Vec::new();
-            arr.resize(self.width as usize, 0u8);
-            self.pixels.push(arr);
+            let mut row = Vec::new();
+            row.resize(self.width as usize, None);
+            self.pixels.push(row);
         }
 
         for patch in &mut definition.patches {
@@ -105,11 +105,12 @@ impl Texture {
     pub fn test_flat_draw(&self, game: &mut Game) {
         for x in 0..self.width as usize {
             for y in 0..self.height as usize {
-                let value = self.pixels[y][x];
-                let color = game.palette.colors[value as usize];
-                game.canvas.set_draw_color(color);
-                let rect = Rect::new(x as i32 * 4, y as i32 * 4, 4, 4);
-                game.canvas.fill_rect(rect).unwrap();
+                if let Some(value) = self.pixels[y][x] {
+                    let color = game.palette.colors[value as usize];
+                    game.canvas.set_draw_color(color);
+                    let rect = Rect::new(x as i32 * 4, y as i32 * 4, 4, 4);
+                    game.canvas.fill_rect(rect).unwrap();
+                }
             }
         }
     }

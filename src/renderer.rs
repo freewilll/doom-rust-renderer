@@ -403,9 +403,10 @@ fn draw_sky(
 
             let ty = (y as f32 * SKY_TEXTURE_HEIGHT as f32 / SCREEN_HEIGHT as f32) as i16;
 
-            let color = palette.colors[sky_texture.pixels[ty as usize][tx as usize] as usize];
-
-            pixels.set(x as usize, y as usize, &color);
+            if let Some(color_value) = sky_texture.pixels[ty as usize][tx as usize] {
+                let color = palette.colors[color_value as usize];
+                pixels.set(x as usize, y as usize, &color);
+            }
         }
     }
 }
@@ -607,10 +608,12 @@ impl Renderer<'_> {
             }
             ty = ty % texture.height;
 
-            let color = self.palette.colors[texture.pixels[ty as usize][tx as usize] as usize];
-            let diminished_color = diminish_color(&color, light_level, z);
+            if let Some(color_value) = texture.pixels[ty as usize][tx as usize] {
+                let color = self.palette.colors[color_value as usize];
+                let diminished_color = diminish_color(&color, light_level, z);
 
-            self.pixels.set(x as usize, y as usize, &diminished_color);
+                self.pixels.set(x as usize, y as usize, &diminished_color);
+            }
         }
     }
 
