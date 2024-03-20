@@ -9,11 +9,12 @@ use sdl2::rect::Rect;
 use sdl2::render::Canvas;
 use sdl2::render::TextureCreator;
 use sdl2::video::Window;
+use sdl2::EventPump;
 use sdl2::Sdl;
 use std::collections::HashSet;
 use std::f32::consts::PI;
 use std::rc::Rc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use crate::flats::Flats;
 use crate::geometry::Line;
@@ -33,6 +34,8 @@ pub const SCREEN_WIDTH: u32 = 1024;
 pub const SCREEN_HEIGHT: u32 = 768;
 const MAP_BORDER: u32 = 20;
 
+const CLOCK_HZ: u32 = 35;
+
 #[derive(Debug)]
 pub struct Player {
     pub position: Vertex,
@@ -43,42 +46,47 @@ pub struct Player {
 pub const AVG_TICKS_MAXSAMPLES: u32 = 16;
 
 // Keep track of a rolling average of frame render times.
-// A "tick" is actually a f32 time interval in seconds
-struct AvgTicksCounter {
-    index: usize,
-    sum: f32,
+struct Clock {
+    timestamp: f32, // In seconds since the start of the game
+    ticks: u32,     // 35 Hz ticks that have elapsed since the start of the game
+    index: usize,   // Cicrular buffer index
     rolling_sum: f32,
     list: Vec<f32>, // A circular buffer of length AVG_TICKS_MAXSAMPLES
 }
 
-impl AvgTicksCounter {
-    fn new() -> AvgTicksCounter {
+impl Clock {
+    fn new() -> Clock {
         let mut list = vec![0.0; AVG_TICKS_MAXSAMPLES as usize];
         list.iter_mut().for_each(|x| *x = 0.0);
-        AvgTicksCounter {
+        Clock {
+            timestamp: 0.0,
+            ticks: 0,
             index: 0,
-            sum: 0.0,
             rolling_sum: 0.0,
             list: list,
         }
     }
 
-    fn get_avg_ticks(&mut self, new_tick: f32) -> f32 {
-        self.sum += self.list[self.index];
+    // Add a passed time interval to the clock and recalculate the FPS rolling average
+    fn add_elapsed_interval(&mut self, interval: f32) {
+        self.timestamp += interval;
+        self.ticks = (self.timestamp * CLOCK_HZ as f32) as u32;
         self.rolling_sum -= self.list[self.index];
-        self.rolling_sum += new_tick;
-        self.list[self.index] = new_tick;
+        self.rolling_sum += interval;
+        self.list[self.index] = interval;
 
         self.index += 1;
         if self.index == AVG_TICKS_MAXSAMPLES as usize {
             self.index = 0;
         }
-
-        return self.rolling_sum as f32 / AVG_TICKS_MAXSAMPLES as f32;
     }
 
-    fn get_fps(&mut self, new_tick: f32) -> f32 {
-        1.0 / self.get_avg_ticks(new_tick)
+    fn get_avg_ticks(&mut self) -> f32 {
+        self.rolling_sum as f32 / AVG_TICKS_MAXSAMPLES as f32
+    }
+
+    fn get_fps(&mut self) -> f32 {
+        1.0 / self.get_avg_ticks()
     }
 }
 
@@ -86,7 +94,8 @@ impl AvgTicksCounter {
 pub struct Game {
     sdl_context: Sdl,
     pub canvas: Canvas<Window>,
-    avg_ticks_counter: AvgTicksCounter,
+    clock: Clock,
+    last_tick_processed: u32,
     map: Map,
     pub palette: Palette,
     player: Player,
@@ -137,7 +146,8 @@ impl Game {
         let mut game = Game {
             sdl_context,
             canvas,
-            avg_ticks_counter: AvgTicksCounter::new(),
+            clock: Clock::new(),
+            last_tick_processed: 0,
             map,
             player,
             pressed_keys: HashSet::new(),
@@ -270,9 +280,13 @@ impl Game {
         self.canvas.draw_line(left_arrow_point, end_point).unwrap();
     }
 
-    fn process_down_keys(&mut self, duration: &Duration) {
-        let rotate_factor: f32 = duration.as_millis() as f32 * 0.0025; // radians/msec
-        let move_factor: f32 = duration.as_millis() as f32 * 0.291; // 291 mu/sec
+    // This is done differently from Doom, which runs with a 35 Hz clock. If this was
+    // done each tick, like doom does, then the walking/running feeling would be
+    // choppy. This way, the motion is as fluent as it can be.
+    fn process_down_keys(&mut self) {
+        let duration = 1000.0 / CLOCK_HZ as f32; // In milliseconds
+        let rotate_factor: f32 = duration * 0.0025; // radians/msec
+        let move_factor: f32 = duration * 0.291; // 291 mu/sec
 
         let alt_down = self.pressed_keys.contains(&Keycode::LAlt)
             || self.pressed_keys.contains(&Keycode::RAlt);
@@ -367,97 +381,128 @@ impl Game {
         }
     }
 
-    pub fn main_loop(&mut self) {
-        // Create the texture + pixels for the renderer
-        let texture_creator: TextureCreator<_> = self.canvas.texture_creator();
-        let mut texture = texture_creator
-            .create_texture_streaming(PixelFormatEnum::RGB24, SCREEN_WIDTH, SCREEN_HEIGHT)
-            .unwrap();
-        let mut pixels = Pixels::new();
+    // Process events. Returns true if the game should end
+    fn process_events(&mut self, event_pump: &mut EventPump) -> bool {
+        for event in event_pump.poll_iter() {
+            match event {
+                Event::Quit { .. }
+                | Event::KeyDown {
+                    keycode: Some(Keycode::Escape),
+                    ..
+                }
+                | Event::KeyDown {
+                    keycode: Some(Keycode::Q),
+                    ..
+                } => {
+                    return true; // Stop the main loop and terminate
+                }
 
+                Event::KeyDown {
+                    keycode: Some(Keycode::Tab),
+                    ..
+                } => {
+                    self.viewing_map = !self.viewing_map;
+                }
+
+                Event::KeyDown {
+                    keycode: Some(keycode),
+                    ..
+                } => {
+                    self.pressed_keys.insert(keycode);
+                }
+
+                Event::KeyUp {
+                    keycode: Some(keycode),
+                    ..
+                } => {
+                    self.pressed_keys.remove(&keycode);
+                }
+
+                _ => {}
+            }
+        }
+
+        return false;
+    }
+
+    // Process one game tick
+    fn tick(&mut self) {
+        self.process_down_keys();
+    }
+
+    // Move forward in time & run game logic
+    fn evolve(&mut self, t0: &Instant) {
+        let elapsed = t0.elapsed();
+        self.clock.add_elapsed_interval(elapsed.as_secs_f32());
+        if self.print_fps {
+            println!("FPS {}", self.clock.get_fps());
+        }
+
+        if self.last_tick_processed < self.clock.ticks {
+            for _ in 0..self.clock.ticks - self.last_tick_processed {
+                self.tick();
+            }
+
+            self.last_tick_processed = self.clock.ticks;
+        }
+    }
+
+    fn render(&mut self) {
+        if self.viewing_map {
+            self.canvas.set_draw_color(Color::RGB(0, 0, 0));
+            self.canvas.clear();
+
+            self.draw_map_linedefs();
+            self.draw_map_player();
+        } else {
+            // Create the texture + pixels for the renderer
+            let texture_creator: TextureCreator<_> = self.canvas.texture_creator();
+            let mut texture = texture_creator
+                .create_texture_streaming(PixelFormatEnum::RGB24, SCREEN_WIDTH, SCREEN_HEIGHT)
+                .unwrap();
+
+            let mut pixels = Pixels::new();
+
+            Renderer::new(
+                &mut pixels,
+                &self.map,
+                &mut self.textures,
+                Rc::clone(&self.sky_texture),
+                &mut self.flats,
+                &mut self.palette,
+                &self.player,
+                self.clock.timestamp,
+            )
+            .render();
+
+            texture
+                .with_lock(None, |buffer: &mut [u8], _pitch: usize| {
+                    buffer.copy_from_slice(pixels.pixels.as_ref());
+                })
+                .unwrap();
+
+            let screen_rect = Rect::new(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+            self.canvas
+                .copy(&texture, screen_rect, screen_rect)
+                .unwrap();
+        }
+
+        self.canvas.present();
+    }
+
+    pub fn main_loop(&mut self) {
         let mut event_pump = self.sdl_context.event_pump().unwrap();
-        'running: loop {
+
+        loop {
             let t0 = Instant::now();
 
-            if self.viewing_map {
-                self.canvas.set_draw_color(Color::RGB(0, 0, 0));
-                self.canvas.clear();
+            self.render();
 
-                self.draw_map_linedefs();
-                self.draw_map_player();
-            } else {
-                pixels.clear();
-
-                Renderer::new(
-                    &mut pixels,
-                    &self.map,
-                    &mut self.textures,
-                    Rc::clone(&self.sky_texture),
-                    &mut self.flats,
-                    &mut self.palette,
-                    &self.player,
-                    self.avg_ticks_counter.sum,
-                )
-                .render();
-
-                texture
-                    .with_lock(None, |buffer: &mut [u8], _pitch: usize| {
-                        buffer.copy_from_slice(pixels.pixels.as_ref());
-                    })
-                    .unwrap();
-
-                let screen_rect = Rect::new(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-                self.canvas
-                    .copy(&texture, screen_rect, screen_rect)
-                    .unwrap();
+            if self.process_events(&mut event_pump) {
+                break;
             }
 
-            self.canvas.present();
-
-            for event in event_pump.poll_iter() {
-                match event {
-                    Event::Quit { .. }
-                    | Event::KeyDown {
-                        keycode: Some(Keycode::Escape),
-                        ..
-                    }
-                    | Event::KeyDown {
-                        keycode: Some(Keycode::Q),
-                        ..
-                    } => break 'running,
-
-                    Event::KeyDown {
-                        keycode: Some(Keycode::Tab),
-                        ..
-                    } => {
-                        self.viewing_map = !self.viewing_map;
-                    }
-
-                    Event::KeyDown {
-                        keycode: Some(keycode),
-                        ..
-                    } => {
-                        self.pressed_keys.insert(keycode);
-                    }
-
-                    Event::KeyUp {
-                        keycode: Some(keycode),
-                        ..
-                    } => {
-                        self.pressed_keys.remove(&keycode);
-                    }
-
-                    _ => {}
-                }
-            }
-
-            let elapsed = t0.elapsed();
-            let fps = self.avg_ticks_counter.get_fps(elapsed.as_secs_f32());
-            if self.print_fps {
-                println!("FPS {}", fps);
-            }
-
-            self.process_down_keys(&elapsed);
+            self.evolve(&t0);
         }
     }
 }
