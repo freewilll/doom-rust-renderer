@@ -1,3 +1,6 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use crate::geometry::BoundingBox;
 use crate::linedefs::{load_linedefs, Linedef};
 use crate::nodes::{load_nodes, Node};
@@ -8,19 +11,18 @@ use crate::subsectors::{load_subsectors, SubSector};
 use crate::things::{load_things, Thing};
 use crate::vertexes::{load_vertexes, Vertex};
 use crate::wad::WadFile;
-use std::rc::Rc;
 
 pub struct Map {
-    pub things: Vec<Rc<Thing>>,         // Monsters, weapons, keys, etc
-    pub vertexes: Vec<Rc<Vertex>>,      // Vertexes that make up the lines
-    pub linedefs: Vec<Rc<Linedef>>,     // Lines
-    pub sidedefs: Vec<Rc<Sidedef>>,     // What's on the side of a line
-    pub segs: Vec<Rc<Seg>>,             // Lines, split by the BSP builder
-    pub subsectors: Vec<Rc<SubSector>>, // Sectors, split by the BSP builder
-    pub nodes: Vec<Rc<Node>>,           // BSP tree
-    pub sectors: Vec<Rc<Sector>>,       // Closed polygons made up of linedefs
-    pub root_node: Rc<Node>,            // Root node of the BSP tree
-    pub bounding_box: BoundingBox,      // Bounding box for the whole map
+    pub things: Vec<Rc<Thing>>,            // Monsters, weapons, keys, etc
+    pub vertexes: Vec<Rc<Vertex>>,         // Vertexes that make up the lines
+    pub linedefs: Vec<Rc<Linedef>>,        // Lines
+    pub sidedefs: Vec<Rc<Sidedef>>,        // What's on the side of a line
+    pub segs: Vec<Rc<Seg>>,                // Lines, split by the BSP builder
+    pub subsectors: Vec<Rc<SubSector>>,    // Sectors, split by the BSP builder
+    pub nodes: Vec<Rc<Node>>,              // BSP tree
+    pub sectors: Vec<Rc<RefCell<Sector>>>, // Closed polygons made up of linedefs, mutatable with RefCell
+    pub root_node: Rc<Node>,               // Root node of the BSP tree
+    pub bounding_box: BoundingBox,         // Bounding box for the whole map
 }
 
 impl Map {

@@ -26,6 +26,7 @@ use crate::pictures::Pictures;
 use crate::renderer::{Pixels, Renderer};
 use crate::textures::{Texture, Textures};
 use crate::things::{get_thing_by_type, ThingTypes};
+use crate::thinkers::{init_thinkers, Thinker};
 use crate::vertexes::Vertex;
 use crate::wad::WadFile;
 
@@ -106,6 +107,7 @@ pub struct Game {
     flats: Flats,       // Flats
     textures: Textures,
     sky_texture: Rc<Texture>,
+    thinkers: Vec<Box<dyn Thinker>>,
     print_fps: bool, // Show frames per second
 }
 
@@ -158,11 +160,13 @@ impl Game {
             flats,
             textures,
             sky_texture: Rc::clone(&sky_texture),
+            thinkers: Vec::new(),
             print_fps,
         };
 
         // Set initial player height
         game.update_current_player_height();
+        init_thinkers(&mut game.thinkers, &game.map);
 
         game
     }
@@ -371,7 +375,7 @@ impl Game {
                         };
 
                         if let Some(sidedef) = opt_sidedef {
-                            self.player.floor_height = sidedef.sector.floor_height as f32;
+                            self.player.floor_height = sidedef.sector.borrow().floor_height as f32;
                             return;
                         };
                     }
@@ -425,9 +429,16 @@ impl Game {
         return false;
     }
 
+    fn tick_thinkers(&mut self) {
+        for thinker in &mut self.thinkers {
+            thinker.mutate();
+        }
+    }
+
     // Process one game tick
     fn tick(&mut self) {
         self.process_down_keys();
+        self.tick_thinkers();
     }
 
     // Move forward in time & run game logic

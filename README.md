@@ -38,6 +38,7 @@ cargo run -r -- --help
 - Floors/ceiling + sky
 - Sector lighting
 - Light diminishing
+- Blinking lights
 - Animated floors
 - 2D map
 - Moving around with keyboard: arrows, shift, strafe, turbo
@@ -45,7 +46,6 @@ cargo run -r -- --help
 # Things missing from the renderer
 - Animated wall textures
 - Things
-- Blinking lights
 
 # Links
 - [Game Engine Black Book: DOOM](https://archive.org/details/gebbdoome)

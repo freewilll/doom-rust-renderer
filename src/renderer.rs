@@ -988,7 +988,7 @@ impl Renderer<'_> {
             }
         };
 
-        let front_sector = &front_sidedef.sector;
+        let front_sector = &front_sidedef.sector.borrow();
 
         // Get the floor and ceiling height from the front sector
         let floor_height = front_sector.floor_height as f32;
@@ -1001,15 +1001,15 @@ impl Renderer<'_> {
                 let back_sector = &back_sidedef.sector;
 
                 let opt_portal_bottom_height =
-                    if back_sector.floor_height > front_sector.floor_height {
-                        Some(back_sector.floor_height as f32)
+                    if back_sector.borrow().floor_height > front_sector.floor_height {
+                        Some(back_sector.borrow().floor_height as f32)
                     } else {
                         None
                     };
 
                 let opt_portal_top_height =
-                    if back_sector.ceiling_height < front_sector.ceiling_height {
-                        Some(back_sector.ceiling_height as f32)
+                    if back_sector.borrow().ceiling_height < front_sector.ceiling_height {
+                        Some(back_sector.borrow().ceiling_height as f32)
                     } else {
                         None
                     };
@@ -1079,11 +1079,15 @@ impl Renderer<'_> {
         // https://doomwiki.org/wiki/Sky_hack
         // This follows the gory details in r_segs.c
         if let Some(back_sidedef) = opt_back_sidedef {
-            if front_sidedef.sector.ceiling_texture.contains("SKY")
-                && back_sidedef.sector.ceiling_texture.contains("SKY")
+            if front_sidedef
+                .sector
+                .borrow()
+                .ceiling_texture
+                .contains("SKY")
+                && back_sidedef.sector.borrow().ceiling_texture.contains("SKY")
             {
                 opt_portal_top_height = None;
-                ceiling_height = back_sidedef.sector.ceiling_height as f32;
+                ceiling_height = back_sidedef.sector.borrow().ceiling_height as f32;
                 draw_ceiling = false;
             }
         }

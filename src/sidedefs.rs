@@ -1,6 +1,8 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use crate::sectors::Sector;
 use crate::wad::{MapLumpName, WadFile};
-use std::rc::Rc;
 
 #[derive(Debug)]
 pub struct Sidedef {
@@ -10,12 +12,12 @@ pub struct Sidedef {
     pub upper_texture: String,
     pub lower_texture: String,
     pub middle_texture: String,
-    pub sector: Rc<Sector>, // Sector number this sidedef 'faces'
+    pub sector: Rc<RefCell<Sector>>, // Sector number this sidedef 'faces'
 }
 
 pub fn load_sidedefs(
     wad_file: &WadFile,
-    sectors: &Vec<Rc<Sector>>,
+    sectors: &Vec<Rc<RefCell<Sector>>>,
     map_name: &str,
 ) -> Vec<Rc<Sidedef>> {
     let dir_entry = wad_file.get_dir_entry_for_map_lump(map_name, MapLumpName::Sidedefs);

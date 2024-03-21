@@ -5,6 +5,7 @@ use std::{fs::metadata, fs::File, io::Read};
 mod flats;
 mod game;
 mod geometry;
+mod lights;
 mod linedefs;
 mod map;
 mod nodes;
@@ -17,6 +18,7 @@ mod sidedefs;
 mod subsectors;
 mod textures;
 mod things;
+mod thinkers;
 mod vertexes;
 mod wad;
 

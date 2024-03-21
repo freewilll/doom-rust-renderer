@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::wad::{MapLumpName, WadFile};
@@ -14,7 +15,7 @@ pub struct Sector {
     pub tag_number: i16,
 }
 
-pub fn load_sectors(wad_file: &WadFile, map_name: &str) -> Vec<Rc<Sector>> {
+pub fn load_sectors(wad_file: &WadFile, map_name: &str) -> Vec<Rc<RefCell<Sector>>> {
     let dir_entry = wad_file.get_dir_entry_for_map_lump(map_name, MapLumpName::Sectors);
     let count = dir_entry.size as usize / 26; // A sector is 26 bytes long
 
@@ -35,7 +36,7 @@ pub fn load_sectors(wad_file: &WadFile, map_name: &str) -> Vec<Rc<Sector>> {
             special_type: wad_file.read_i16(offset + 22),
             tag_number: wad_file.read_i16(offset + 24),
         };
-        results.push(Rc::new(sector));
+        results.push(Rc::new(RefCell::new(sector)));
     }
 
     results
