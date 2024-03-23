@@ -26,7 +26,7 @@ impl Vertex {
         self.x * other.y - self.y * other.x
     }
 
-    // Are we left or on the line ?
+    // Are we left or of the line ?
     pub fn is_left_of_line(&self, line: &Line) -> bool {
         (&(self - &line.start)).cross_product(&(&line.end - &line.start)) <= 0.0
     }

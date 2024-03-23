@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::{fmt, str};
 
+use crate::bitmap::Bitmap;
 use crate::game::Game;
 use crate::pictures::Picture;
 use crate::wad::{DirEntry, WadFile};
@@ -40,9 +41,7 @@ pub struct TextureDefinition {
 // A Texture is a loaded texture, with its pixels populated from the patches
 pub struct Texture {
     pub name: String,
-    pub width: i16,
-    pub height: i16,
-    pub pixels: Vec<Vec<Option<u8>>>, // Grid of colormap indexes or None if transparent
+    pub bitmap: Rc<Bitmap>,
 }
 
 // A struct to handle lazy loaded textures
@@ -60,7 +59,7 @@ impl Patch {
         };
 
         let patch_name = &pnames[self.patch_number as usize].name;
-        let rc_picture = Rc::new(Picture::new(&self.wad_file, patch_name));
+        let rc_picture = Rc::new(Picture::new(&self.wad_file, patch_name).unwrap());
         self.picture = Some(Rc::clone(&rc_picture));
 
         rc_picture
@@ -70,30 +69,30 @@ impl Patch {
 impl Texture {
     // Load a texture by first loading all the patches, then setting
     // the pixels from the patches.
-    fn load(&mut self, definition: &mut TextureDefinition, pnames: &Vec<Pname>) {
-        self.pixels = Vec::with_capacity(self.height as usize);
-        for _ in 0..self.height as usize {
+    fn load(definition: &mut TextureDefinition, pnames: &Vec<Pname>, bitmap: &mut Bitmap) {
+        bitmap.pixels = Vec::with_capacity(bitmap.height as usize);
+        for _ in 0..bitmap.height as usize {
             let mut row = Vec::new();
-            row.resize(self.width as usize, None);
-            self.pixels.push(row);
+            row.resize(bitmap.width as usize, None);
+            bitmap.pixels.push(row);
         }
 
         for patch in &mut definition.patches {
             let picture = patch.get_picture(pnames);
 
-            for x in 0..picture.width as usize {
-                for y in 0..picture.height as usize {
-                    let value = picture.pixels[y][x];
+            for x in 0..picture.bitmap.width as usize {
+                for y in 0..picture.bitmap.height as usize {
+                    let value = picture.bitmap.pixels[y][x];
 
                     let picture_x = x as i16 + patch.origin_x;
                     let picture_y = y as i16 + patch.origin_y;
 
                     if picture_x >= 0
-                        && picture_x < self.width
+                        && picture_x < bitmap.width
                         && picture_y >= 0
-                        && picture_y < self.height
+                        && picture_y < bitmap.height
                     {
-                        self.pixels[(y as i16 + patch.origin_y) as usize]
+                        bitmap.pixels[(y as i16 + patch.origin_y) as usize]
                             [(x as i16 + patch.origin_x) as usize] = value;
                     }
                 }
@@ -104,9 +103,9 @@ impl Texture {
     // Draw the picture to the top-left corner
     #[allow(dead_code)]
     pub fn test_flat_draw(&self, game: &mut Game) {
-        for x in 0..self.width as usize {
-            for y in 0..self.height as usize {
-                if let Some(value) = self.pixels[y][x] {
+        for x in 0..self.bitmap.width as usize {
+            for y in 0..self.bitmap.height as usize {
+                if let Some(value) = self.bitmap.pixels[y][x] {
                     let color = game.palette.colors[value as usize];
                     game.canvas.set_draw_color(color);
                     let rect = Rect::new(x as i32 * 4, y as i32 * 4, 4, 4);
@@ -119,7 +118,11 @@ impl Texture {
 
 impl fmt::Debug for Texture {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Texture: dimensions: {} x {}", self.width, self.height)
+        write!(
+            f,
+            "Texture: dimensions: {} x {}",
+            self.bitmap.width, self.bitmap.height
+        )
     }
 }
 
@@ -157,15 +160,15 @@ impl Textures {
             return Rc::clone(&texture);
         }
 
-        // Load the texture
-        let mut texture = Texture {
-            name: name.to_string(),
-            width: definition.width,
-            height: definition.height,
-            pixels: Vec::new(),
-        };
+        let mut bitmap = Bitmap::new(definition.width, definition.height, Vec::new());
 
-        texture.load(definition, &self.pnames);
+        Texture::load(definition, &self.pnames, &mut bitmap);
+
+        // Load the texture
+        let texture = Texture {
+            name: name.to_string(),
+            bitmap: Rc::new(bitmap),
+        };
 
         let rc_texture = Rc::new(texture);
         definition.texture = Some(Rc::clone(&rc_texture));

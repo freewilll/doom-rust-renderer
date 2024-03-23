@@ -1,16 +1,22 @@
+use core::cmp::Ordering;
 use sdl2::pixels::Color;
 use sdl2::rect::Point;
+use std::cell::RefCell;
 use std::cmp::{max, min};
 use std::f32::consts::PI;
 use std::rc::Rc;
 
+use crate::bitmap::Bitmap;
 use crate::flats::{Flat, Flats, FLAT_SIZE};
 use crate::game::{Player, SCREEN_HEIGHT, SCREEN_WIDTH};
 use crate::geometry::Line;
 use crate::linedefs::Flags;
 use crate::map::Map;
+use crate::map_objects::MapObjects;
 use crate::nodes::{Node, NodeChild};
 use crate::palette::Palette;
+use crate::pictures::Pictures;
+use crate::sectors::Sector;
 use crate::segs::Seg;
 use crate::sidedefs::Sidedef;
 use crate::subsectors::SubSector;
@@ -36,6 +42,7 @@ pub struct Renderer<'a> {
     pixels: &'a mut Pixels,
     map: &'a Map,
     textures: &'a mut Textures,
+    pictures: &'a mut Pictures,
     sky_texture: Rc<Texture>,
     flats: &'a mut Flats,
     palette: &'a mut Palette,
@@ -45,7 +52,8 @@ pub struct Renderer<'a> {
     floor_ver_ocl: [i16; SCREEN_WIDTH as usize], // Vertical occlusions for the floor
     ceiling_ver_ocl: [i16; SCREEN_WIDTH as usize], // Vertical occlusions for the ceiling
     vis_planes: Vec<Visplane>,
-    two_sided_textures: Vec<TwoSidedTextureRenderDetails>,
+    segs: Vec<BitmapRender>,
+    map_objects: &'a MapObjects,
 }
 
 #[derive(Debug, Clone)]
@@ -380,11 +388,10 @@ impl SidedefVisPlanes {
 
 // Draw a vertical line of a texture
 // See 5.12.5 Perspective-Correct Texture Mapping in the game engine black book
-fn render_vertical_texture_line(
+fn render_vertical_bitmap_line(
     pixels: &mut Pixels,
     palette: &Palette,
-    sidedef: &Sidedef,          // The sidedef
-    texture: &Texture,          // The texture
+    bitmap: &Bitmap,            // The texture or pictures' bitmap
     light_level: i16,           // Sector light level
     clipped_line: &ClippedLine, // The clipped line in viewport coordinates
     start_x: i32,               // The clipped line x start in screen coordinates
@@ -410,11 +417,11 @@ fn render_vertical_texture_line(
     let ax = (x - start_x) as f32 / (end_x - start_x) as f32;
     let mut tx = (((1.0 - ax) * (ux0 / uz0) + ax * (ux1 / uz1))
         / ((1.0 - ax) * (1.0 / uz0) + ax * (1.0 / uz1))) as i16;
-    tx = clipped_line.start_offset as i16 + offset_x + sidedef.x_offset as i16 + tx;
+    tx = clipped_line.start_offset as i16 + offset_x + tx;
     if tx < 0 {
-        tx += texture.width * (1 - tx / texture.width)
+        tx += bitmap.width * (1 - tx / bitmap.width)
     }
-    tx = tx % texture.width;
+    tx = tx % bitmap.width;
 
     // z coordinate of column in world coordinates
     let z = (((1.0 - ax) * (uz0 / uz0) + ax * (uz1 / uz1))
@@ -424,15 +431,15 @@ fn render_vertical_texture_line(
         // Calculate texture y
         // A simple linear interpolation will do; the x distance is not a factor
         let ay = (y - top_y) as f32 / (bottom_y - top_y) as f32;
-        let mut ty = (texture.height as f32 + (1.0 - ay) * uy0 + ay * uy1) as i16;
+        let mut ty = (bitmap.height as f32 + (1.0 - ay) * uy0 + ay * uy1) as i16;
 
-        ty = offset_y + sidedef.y_offset as i16 + ty;
+        ty = offset_y + ty;
         if ty < 0 {
-            ty += texture.height * (1 - ty / texture.height)
+            ty += bitmap.height * (1 - ty / bitmap.height)
         }
-        ty = ty % texture.height;
+        ty = ty % bitmap.height;
 
-        if let Some(color_value) = texture.pixels[ty as usize][tx as usize] {
+        if let Some(color_value) = bitmap.pixels[ty as usize][tx as usize] {
             let color = palette.colors[color_value as usize];
             let diminished_color = diminish_color(&color, light_level, z);
 
@@ -441,7 +448,15 @@ fn render_vertical_texture_line(
     }
 }
 
-struct TwoSidedColumn {
+#[derive(PartialEq)]
+enum BitmapRenderState {
+    SolidSeg,    // Already drawn solid wall, only used for clipping map objects.
+    TwoSidedSeg, // A portal. Must be drawn behind may objects. Also used for clipping map objects.
+    DrawnSeg,    // A two sided portal that's already drawn
+    MapObject,   // Is a map object
+}
+
+struct BitmapColumn {
     x: i32,                // The x coordinate in screen coordinate
     clipped_top_y: i32,    // The y region to draw in screen coordinates
     clipped_bottom_y: i32, // The y region to draw in screen coordinates
@@ -449,37 +464,42 @@ struct TwoSidedColumn {
     top_y: i32,            // Full vertical line in screen coordinates
 }
 
-// Insane amount of context that is needed to call render_vertical_texture_line
-struct TwoSidedTextureRenderDetails {
-    sidedef: Rc<Sidedef>,         // The sidedef
-    texture: Option<Rc<Texture>>, // The texture
-    light_level: i16,             // Sector light level
-    clipped_line: ClippedLine,    // The clipped line in viewport coordinates
-    start_x: i32,                 // The clipped line x start in screen coordinates
-    end_x: i32,                   // The clipped line x end in screen coordinates
-    bottom_height: f32,           // The (potentially not-drawn) bottom in viewport coordinates
-    top_height: f32,              // The (potentially not-drawn) top in viewport coordinates
-    offset_x: i16,                // Texture offset in viewport coordinates
-    offset_y: i16,                // Texture offset in viewport coordinates
-    columns: Vec<TwoSidedColumn>, // The columns
+// Insane amount of context that is needed to call render_vertical_bitmap_line
+// and do map object clipping.
+struct BitmapRender {
+    state: BitmapRenderState,   // Usage and if it's already been drawn
+    bitmap: Option<Rc<Bitmap>>, // The texture or picture's bitmap, None if this is a non-rendered portal
+    light_level: i16,           // Sector light level
+    clipped_line: ClippedLine,  // The clipped line in viewport coordinates
+    start_x: i32,               // The clipped line x start in screen coordinates
+    end_x: i32,                 // The clipped line x end in screen coordinates
+    bottom_height: f32,         // The (potentially not-drawn) bottom in viewport coordinates
+    top_height: f32,            // The (potentially not-drawn) top in viewport coordinates
+    offset_x: i16,              // Texture offset in viewport coordinates
+    offset_y: i16,              // Texture offset in viewport coordinates
+    extends_to_bottom: bool,    // Used to clip map objects against solid walls
+    extends_to_top: bool,       // Used to clip map objects against solid walls
+    columns: Vec<BitmapColumn>, // The columns
 }
 
-impl TwoSidedTextureRenderDetails {
-    fn new<'a>(
-        sidedef: Rc<Sidedef>,         // The sidedef
-        texture: Option<Rc<Texture>>, // The texture
-        light_level: i16,             // Sector light level
-        clipped_line: ClippedLine,    // The clipped line in viewport coordinates
-        start_x: i32,                 // The clipped line x start in screen coordinates
-        end_x: i32,                   // The clipped line x end in screen coordinates
-        bottom_height: f32,           // The (potentially not-drawn) bottom in viewport coordinates
-        top_height: f32,              // The (potentially not-drawn) top in viewport coordinates
-        offset_x: i16,                // Texture offset in viewport coordinates
-        offset_y: i16,                // Texture offset in viewport coordinates
-    ) -> TwoSidedTextureRenderDetails {
-        TwoSidedTextureRenderDetails {
-            sidedef,
-            texture,
+impl BitmapRender {
+    fn new(
+        state: BitmapRenderState,   // The state
+        bitmap: Option<Rc<Bitmap>>, // The texture or picture's bitmap, None if this is a non-rendered portal
+        light_level: i16,           // Sector light level
+        clipped_line: ClippedLine,  // The clipped line in viewport coordinates
+        start_x: i32,               // The clipped line x start in screen coordinates
+        end_x: i32,                 // The clipped line x end in screen coordinates
+        bottom_height: f32,         // The (potentially not-drawn) bottom in viewport coordinates
+        top_height: f32,            // The (potentially not-drawn) top in viewport coordinates
+        offset_x: i16,              // Texture offset in viewport coordinates
+        offset_y: i16,              // Texture offset in viewport coordinates
+        extends_to_bottom: bool,    // Used to clip things against solid walls
+        extends_to_top: bool,       // Used to clip things against solid walls
+    ) -> BitmapRender {
+        BitmapRender {
+            state,
+            bitmap,
             light_level,
             clipped_line,
             start_x,
@@ -488,35 +508,41 @@ impl TwoSidedTextureRenderDetails {
             top_height,
             offset_x,
             offset_y,
+            extends_to_bottom,
+            extends_to_top,
             columns: vec![],
         }
     }
 
     fn add_column(
         &mut self,
-        x: i32,                // The x coordinate in screen coordinate
-        clipped_top_y: i32,    // The y region to draw in screen coordinates
-        clipped_bottom_y: i32, // The y region to draw in screen coordinates
-        bottom_y: i32,         // Full vertical line in screen coordinates
-        top_y: i32,            // Full vertical line in screen coordinates
+        x: i16,                // The x coordinate in screen coordinate
+        clipped_top_y: i16,    // The y region to draw in screen coordinates
+        clipped_bottom_y: i16, // The y region to draw in screen coordinates
+        bottom_y: i16,         // Full vertical line in screen coordinates
+        top_y: i16,            // Full vertical line in screen coordinates
     ) {
-        self.columns.push(TwoSidedColumn {
-            x,
-            clipped_top_y,
-            clipped_bottom_y,
-            bottom_y,
-            top_y,
+        self.columns.push(BitmapColumn {
+            x: x.into(),
+            clipped_top_y: clipped_top_y.into(),
+            clipped_bottom_y: clipped_bottom_y.into(),
+            bottom_y: bottom_y.into(),
+            top_y: top_y.into(),
         });
     }
 
-    fn render(&self, pixels: &mut Pixels, palette: &Palette) {
-        if let Some(texture) = &self.texture {
+    fn render(&mut self, pixels: &mut Pixels, palette: &Palette) {
+        // Bail if already rendered
+        if self.state == BitmapRenderState::SolidSeg || self.state == BitmapRenderState::DrawnSeg {
+            return;
+        }
+
+        if let Some(bitmap) = &self.bitmap {
             for column in &self.columns {
-                render_vertical_texture_line(
+                render_vertical_bitmap_line(
                     pixels,
                     palette,
-                    &self.sidedef,
-                    &texture,
+                    bitmap,
                     self.light_level,
                     &self.clipped_line,
                     self.start_x,
@@ -533,8 +559,34 @@ impl TwoSidedTextureRenderDetails {
                 );
             }
         }
+
+        // Note: this differs a bit from Doom which keeps track of which columns
+        // are drawn. Here, an entire seg is either drawn or not.
+        self.state = BitmapRenderState::DrawnSeg;
     }
 }
+
+impl Ord for BitmapRender {
+    fn cmp(&self, other: &Self) -> Ordering {
+        let self_i16 = self.clipped_line.line.start.x as i16;
+        let other_i16 = other.clipped_line.line.start.x as i16;
+        self_i16.cmp(&other_i16)
+    }
+}
+
+impl PartialOrd for BitmapRender {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for BitmapRender {
+    fn eq(&self, other: &Self) -> bool {
+        self.clipped_line.line.start.x == other.clipped_line.line.start.x
+    }
+}
+
+impl Eq for BitmapRender {}
 
 fn draw_sky(
     pixels: &mut Pixels,
@@ -564,7 +616,7 @@ fn draw_sky(
 
             let ty = (y as f32 * SKY_TEXTURE_HEIGHT as f32 / SCREEN_HEIGHT as f32) as i16;
 
-            if let Some(color_value) = sky_texture.pixels[ty as usize][tx as usize] {
+            if let Some(color_value) = sky_texture.bitmap.pixels[ty as usize][tx as usize] {
                 let color = palette.colors[color_value as usize];
                 pixels.set(x as usize, y as usize, &color);
             }
@@ -666,16 +718,19 @@ impl Renderer<'_> {
         pixels: &'a mut Pixels,
         map: &'a Map,
         textures: &'a mut Textures,
+        pictures: &'a mut Pictures,
         sky_texture: Rc<Texture>,
         flats: &'a mut Flats,
         palette: &'a mut Palette,
         player: &'a Player,
+        map_objects: &'a MapObjects,
         timestamp: f32,
     ) -> Renderer<'a> {
         Renderer {
             pixels,
             map,
             textures,
+            pictures,
             sky_texture,
             flats,
             palette,
@@ -685,7 +740,8 @@ impl Renderer<'_> {
             floor_ver_ocl: [SCREEN_HEIGHT as i16; SCREEN_WIDTH as usize],
             ceiling_ver_ocl: [-1; SCREEN_WIDTH as usize],
             vis_planes: Vec::new(),
-            two_sided_textures: Vec::new(),
+            segs: Vec::new(),
+            map_objects,
         }
     }
 
@@ -701,9 +757,9 @@ impl Renderer<'_> {
         }
     }
 
-    fn draw_two_sided_textures(&mut self) {
-        for ts_texture in &mut self.two_sided_textures {
-            ts_texture.render(&mut self.pixels, &self.palette);
+    fn draw_remaining_segs(&mut self) {
+        for seg in &mut self.segs {
+            seg.render(&mut self.pixels, &self.palette);
         }
     }
 
@@ -789,17 +845,29 @@ impl Renderer<'_> {
         // Does the wall from from floor to ceiling?
         let is_full_height_wall = !is_lower_wall && !is_upper_wall && !only_occlusions;
 
-        let mut ts_details = TwoSidedTextureRenderDetails::new(
-            Rc::clone(&sidedef),
-            texture.clone(),
+        let bitmap_render_state = if is_two_sided_middle_wall {
+            BitmapRenderState::TwoSidedSeg
+        } else {
+            BitmapRenderState::SolidSeg
+        };
+
+        let bitmap = texture
+            .as_ref()
+            .map_or_else(|| None, |t| Some(Rc::clone(&t.bitmap)));
+
+        let mut bitmap_render = BitmapRender::new(
+            bitmap_render_state,
+            bitmap,
             light_level,
             clipped_line.clone(),
             bottom.start.x,
             bottom.end.x,
             bottom_height,
             top_height,
-            seg_offset,
-            offset_y as i16,
+            sidedef.x_offset as i16 + seg_offset,
+            sidedef.y_offset as i16 + offset_y as i16,
+            is_lower_wall || (!is_two_sided_middle_wall && is_full_height_wall),
+            is_upper_wall || (!is_two_sided_middle_wall && is_full_height_wall),
         );
 
         for x in bottom.start.x as i16..bottom.end.x as i16 + 1 {
@@ -833,49 +901,31 @@ impl Renderer<'_> {
                 // The middle wall isn't rendered, it's only used to create visplanes.
                 if in_ver_clipped_area {
                     if !is_two_sided_middle_wall && !only_occlusions {
-                        match texture {
-                            None => {
-                                // Draw a missing texture as white
-                                self.pixels.draw_vertical_line(
-                                    x.into(),
-                                    clipped_top_y.into(),
-                                    clipped_bottom_y.into(),
-                                    &Color::RGB(255, 255, 255),
-                                );
-                            }
-                            Some(ref texture) => {
-                                render_vertical_texture_line(
-                                    // Wall/portal details
-                                    &mut self.pixels,
-                                    &self.palette,
-                                    &sidedef,
-                                    &texture,
-                                    light_level,
-                                    &clipped_line,
-                                    bottom.start.x,
-                                    bottom.end.x,
-                                    bottom_height,
-                                    top_height,
-                                    seg_offset,
-                                    offset_y as i16,
-                                    // Column details
-                                    x.into(),
-                                    clipped_top_y.into(),
-                                    clipped_bottom_y.into(),
-                                    bottom_y.into(),
-                                    top_y.into(),
-                                );
-                            }
-                        };
-                    } else if is_two_sided_middle_wall {
-                        ts_details.add_column(
-                            x.into(),
-                            clipped_top_y.into(),
-                            clipped_bottom_y.into(),
-                            bottom_y.into(),
-                            top_y.into(),
-                        );
+                        if let Some(texture) = &texture {
+                            render_vertical_bitmap_line(
+                                // Wall/portal details
+                                &mut self.pixels,
+                                &self.palette,
+                                &texture.bitmap,
+                                light_level,
+                                &clipped_line,
+                                bottom.start.x,
+                                bottom.end.x,
+                                bottom_height,
+                                top_height,
+                                sidedef.x_offset as i16 + seg_offset,
+                                sidedef.y_offset as i16 + offset_y as i16,
+                                // Column details
+                                x.into(),
+                                clipped_top_y.into(),
+                                clipped_bottom_y.into(),
+                                bottom_y.into(),
+                                top_y.into(),
+                            );
+                        }
                     }
+
+                    bitmap_render.add_column(x, clipped_top_y, clipped_bottom_y, bottom_y, top_y);
                 }
 
                 if !is_two_sided_middle_wall
@@ -883,6 +933,7 @@ impl Renderer<'_> {
                     && (is_full_height_wall || only_occlusions)
                 {
                     let mut visplane_added = false;
+
                     // Process bottom visplane
                     if clipped_bottom_y < floor_ver_ocl {
                         if clipped_bottom_y != SCREEN_HEIGHT as i16 - 1 {
@@ -962,9 +1013,7 @@ impl Renderer<'_> {
 
         sidedef_vis_planes.flush(self);
 
-        if is_two_sided_middle_wall {
-            self.two_sided_textures.push(ts_details);
-        }
+        self.segs.push(bitmap_render);
     }
 
     // Draw a seg
@@ -1290,12 +1339,231 @@ impl Renderer<'_> {
         }
     }
 
+    // Draw map objects (aka things)
+    fn draw_map_objects(&mut self) {
+        // Loop over all map objects, prepare the bitmaps, transform and do
+        // clipping.
+        let mut map_object_bitmap_renders: Vec<BitmapRender> = Vec::new();
+
+        for map_object in self.map_objects.objects.iter() {
+            let sprite = &map_object.state.sprite;
+            let frame_char = char::from_u32(65 + map_object.state.frame as u32).unwrap();
+
+            // TODO: orientation and falling back to a decent sprite
+            let picture_0 = self.pictures.get(&format!("{:?}{}0", sprite, frame_char));
+            let picture_1 = self.pictures.get(&format!("{:?}{}1", sprite, frame_char));
+            let picture_2 = self.pictures.get("ELECA0").unwrap(); // Temporary fallback
+
+            let picture = if let Ok(picture_1) = picture_1 {
+                picture_1
+            } else {
+                if let Ok(picture_0) = picture_0 {
+                    picture_0
+                } else {
+                    println!("Unknown sprite/frame {:?}/{}", sprite, frame_char); // TODO
+                    picture_2
+                }
+            };
+
+            // Transform so that the player position and angle is transformed
+            // away.
+            let moved = &map_object.position - &self.player.position;
+            let view_port_vertex = moved.rotate(-self.player.angle);
+
+            let width = picture.bitmap.width;
+
+            // The picture is always centered
+            let start = &view_port_vertex - &Vertex::new(0.0, -width as f32 / 2.0 as f32);
+            let end = &view_port_vertex - &Vertex::new(0.0, width as f32 / 2.0 as f32);
+
+            let line = Line::new(&start, &end);
+
+            let clipped_line = match clip_to_viewport(&line) {
+                Some(clipped_line) => clipped_line,
+                None => {
+                    continue;
+                }
+            };
+
+            if clipped_line.line.start.x < -0.01 {
+                panic!(
+                    "Clipped line x < -0.01: {:?} player: {:?}",
+                    &clipped_line.line.start.x, &self.player.position
+                );
+            }
+
+            let sector = get_sector_from_vertex(&self.map, &map_object.position);
+            if sector.is_none() {
+                // Shouldn't happen, but let's not panic if it does.
+                println!("Thing is outside map: {:?}", map_object);
+                continue;
+            }
+
+            let sector = sector.unwrap();
+
+            let light_level = if map_object.state.full_bright {
+                255
+            } else {
+                sector.borrow().light_level
+            };
+
+            let player_height = &self.player.floor_height + PLAYER_HEIGHT;
+            let z = sector.borrow().floor_height;
+            let bottom_height = z as f32 - player_height;
+            let top_height = z as f32 + picture.bitmap.height as f32 - 1.0 - player_height;
+
+            // Make bottom and top lines
+            let bottom = make_sidedef_non_vertical_line(&clipped_line.line, bottom_height);
+            let top = make_sidedef_non_vertical_line(&clipped_line.line, top_height);
+
+            // top_seg_clip and bottom_seg_clip is the area not obscured.
+            // It starts off all of the screen and gets reduced by the segs in front
+            // of the map object.
+            let mut top_seg_clip: [i16; SCREEN_WIDTH as usize] = [-1; SCREEN_WIDTH as usize];
+            let mut bottom_seg_clip: [i16; SCREEN_WIDTH as usize] =
+                [SCREEN_HEIGHT as i16; SCREEN_WIDTH as usize];
+
+            // Loop over all segs and fill out the seg_clip arrays.
+            for seg in &mut self.segs {
+                // Ignore segs behind the map object
+                if !view_port_vertex.is_left_of_line(&seg.clipped_line.line) {
+                    continue;
+                }
+
+                for column in &seg.columns {
+                    let x = column.x as usize;
+
+                    // Floors and ceilings simply follow the seg.extends_to* flags for
+                    // solid walls.
+                    if seg.state == BitmapRenderState::SolidSeg {
+                        if seg.extends_to_bottom {
+                            bottom_seg_clip[x] =
+                                bottom_seg_clip[x].min(column.clipped_top_y as i16);
+                        }
+
+                        if seg.extends_to_top {
+                            top_seg_clip[x] = top_seg_clip[x].max(column.clipped_bottom_y as i16);
+                        }
+                    } else if seg.state == BitmapRenderState::TwoSidedSeg {
+                        // For portals, it's everything above and below the portal top &
+                        // bottom.
+                        top_seg_clip[x] = top_seg_clip[x].max(column.top_y as i16);
+                        bottom_seg_clip[x] = bottom_seg_clip[x].min(column.bottom_y as i16);
+                    }
+                }
+            }
+
+            // Prepare the render object for the map object
+            let mut bitmap_render = BitmapRender::new(
+                BitmapRenderState::MapObject,
+                Some(Rc::clone(&picture.bitmap)),
+                light_level,
+                clipped_line.clone(),
+                bottom.start.x,
+                bottom.end.x,
+                bottom_height,
+                top_height,
+                0,
+                0,
+                false,
+                false,
+            );
+
+            // Loop from the left x to the right x, calculating the y screen coordinates
+            // for the bottom and top.
+            let bottom_delta = (bottom.start.y as f32 - bottom.end.y as f32)
+                / (bottom.start.x as f32 - bottom.end.x as f32);
+            let top_delta =
+                (top.start.y as f32 - top.end.y as f32) / (top.start.x as f32 - top.end.x as f32);
+
+            // The end is one shorter to prevent texture wrap arounds
+            for x in bottom.start.x as i16..bottom.end.x as i16 {
+                // Calculate top and bottom of the line
+                let bottom_y = (bottom.start.y as f32
+                    + (x as f32 - bottom.start.x as f32) * bottom_delta)
+                    as i16;
+                let top_y =
+                    (top.start.y as f32 + (x as f32 - top.start.x as f32) * top_delta) as i16;
+
+                let mut clipped_top_y = top_y;
+                let mut clipped_bottom_y = bottom_y;
+
+                clipped_top_y = clipped_top_y.max(top_seg_clip[x as usize]);
+                clipped_bottom_y = clipped_bottom_y.min(bottom_seg_clip[x as usize]);
+
+                clipped_top_y = max(0, clipped_top_y);
+                clipped_bottom_y = min(SCREEN_HEIGHT as i16 - 1, clipped_bottom_y);
+
+                bitmap_render.add_column(x, clipped_top_y, clipped_bottom_y, bottom_y, top_y);
+            }
+
+            map_object_bitmap_renders.push(bitmap_render);
+        }
+
+        // Sort the map objects back to front
+        map_object_bitmap_renders.sort();
+        map_object_bitmap_renders.reverse();
+
+        // Render the map objects + all two sided segs in between them.
+        for map_object_bitmap_render in &mut map_object_bitmap_renders {
+            // Render any two sided textures behind the map object
+            for seg in &mut self.segs {
+                if seg > map_object_bitmap_render {
+                    seg.render(&mut self.pixels, &self.palette);
+                }
+            }
+
+            // Render the map object
+            map_object_bitmap_render.render(&mut self.pixels, &self.palette);
+        }
+    }
+
     pub fn render(&mut self) {
         let root_node = Rc::clone(&self.map.root_node);
         self.render_node(&root_node);
 
         self.draw_visplanes();
-        self.two_sided_textures.reverse(); // Sort back to front
-        self.draw_two_sided_textures();
+        self.segs.reverse(); // Sort segs back to front
+        self.draw_map_objects();
+        self.draw_remaining_segs(); // Draw remaining two sided segs
+    }
+}
+
+// Walk the BSP tree to find the sector the vertex is in
+// Returns None if the vertex is outside of the map.
+pub fn get_sector_from_vertex(map: &Map, vertex: &Vertex) -> Option<Rc<RefCell<Sector>>> {
+    let mut node = Rc::clone(&map.root_node);
+
+    loop {
+        let v1 = Vertex::new(node.x, node.y);
+        let v2 = &v1 + &Vertex::new(node.dx, node.dy);
+
+        let is_left = vertex.is_left_of_line(&Line::new(&v1, &v2));
+
+        let child = if is_left {
+            &node.left_child
+        } else {
+            &node.right_child
+        };
+
+        match child {
+            NodeChild::Node(child_node) => node = Rc::clone(child_node),
+            NodeChild::SubSector(subsector) => {
+                for seg in &subsector.segs {
+                    let linedef = &seg.linedef;
+
+                    let opt_sidedef = if seg.direction {
+                        &linedef.back_sidedef
+                    } else {
+                        &linedef.front_sidedef
+                    };
+
+                    if let Some(sidedef) = opt_sidedef {
+                        return Some(sidedef.sector.clone());
+                    };
+                }
+                return None;
+            }
+        }
     }
 }

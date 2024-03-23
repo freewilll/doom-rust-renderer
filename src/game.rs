@@ -17,13 +17,12 @@ use std::rc::Rc;
 use std::time::Instant;
 
 use crate::flats::Flats;
-use crate::geometry::Line;
 use crate::linedefs::Flags;
 use crate::map::Map;
-use crate::nodes::NodeChild;
+use crate::map_objects::MapObjects;
 use crate::palette::Palette;
 use crate::pictures::Pictures;
-use crate::renderer::{Pixels, Renderer};
+use crate::renderer::{get_sector_from_vertex, Pixels, Renderer};
 use crate::textures::{Texture, Textures};
 use crate::things::{get_thing_by_type, ThingTypes};
 use crate::thinkers::{init_thinkers, Thinker};
@@ -107,6 +106,7 @@ pub struct Game {
     flats: Flats,       // Flats
     textures: Textures,
     sky_texture: Rc<Texture>,
+    map_objects: MapObjects,
     thinkers: Vec<Box<dyn Thinker>>,
     print_fps: bool, // Show frames per second
 }
@@ -135,7 +135,7 @@ impl Game {
         let player = Player {
             position: Vertex::new(player1_start.x, player1_start.y),
             angle: player1_start.angle,
-            floor_height: 0.0,
+            floor_height: 0.0, // Will be updated later
         };
 
         let palette = Palette::new(&wad_file);
@@ -144,6 +144,8 @@ impl Game {
         let mut textures = Textures::new(&wad_file);
 
         let sky_texture = Self::get_sky_texture(map_name, &mut textures);
+
+        let map_objects = MapObjects::new(&map);
 
         let mut game = Game {
             sdl_context,
@@ -160,6 +162,7 @@ impl Game {
             flats,
             textures,
             sky_texture: Rc::clone(&sky_texture),
+            map_objects,
             thinkers: Vec::new(),
             print_fps,
         };
@@ -346,42 +349,10 @@ impl Game {
         }
     }
 
-    // Walk down the BSP tree to find the sector floor height the player is in
+    // Update the height of the player by looking at ther sector height the player is in.
     fn update_current_player_height(&mut self) {
-        let mut node = Rc::clone(&self.map.root_node);
-
-        loop {
-            let v1 = Vertex::new(node.x, node.y);
-            let v2 = &v1 + &Vertex::new(node.dx, node.dy);
-
-            let is_left = self.player.position.is_left_of_line(&Line::new(&v1, &v2));
-
-            let child = if is_left {
-                &node.left_child
-            } else {
-                &node.right_child
-            };
-
-            match child {
-                NodeChild::Node(child_node) => node = Rc::clone(child_node),
-                NodeChild::SubSector(subsector) => {
-                    for seg in &subsector.segs {
-                        let linedef = &seg.linedef;
-
-                        let opt_sidedef = if seg.direction {
-                            &linedef.back_sidedef
-                        } else {
-                            &linedef.front_sidedef
-                        };
-
-                        if let Some(sidedef) = opt_sidedef {
-                            self.player.floor_height = sidedef.sector.borrow().floor_height as f32;
-                            return;
-                        };
-                    }
-                    return;
-                }
-            }
+        if let Some(sector) = get_sector_from_vertex(&self.map, &self.player.position) {
+            self.player.floor_height = sector.borrow().floor_height as f32;
         }
     }
 
@@ -458,6 +429,12 @@ impl Game {
         }
     }
 
+    #[allow(dead_code)]
+    fn test_draw_picture(&mut self, name: &str, offset: &Vertex) {
+        self.pictures
+            .test_draw(&mut self.canvas, &self.palette, name, offset);
+    }
+
     fn render(&mut self) {
         if self.viewing_map {
             self.canvas.set_draw_color(Color::RGB(0, 0, 0));
@@ -478,10 +455,12 @@ impl Game {
                 &mut pixels,
                 &self.map,
                 &mut self.textures,
+                &mut self.pictures,
                 Rc::clone(&self.sky_texture),
                 &mut self.flats,
                 &mut self.palette,
                 &self.player,
+                &self.map_objects,
                 self.clock.timestamp,
             )
             .render();

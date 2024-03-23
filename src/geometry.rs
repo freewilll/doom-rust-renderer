@@ -84,4 +84,9 @@ impl Line {
     pub fn length(&self) -> f32 {
         ((self.start.x - self.end.x).powi(2) + (self.start.y - self.end.y).powi(2)).sqrt()
     }
+
+    // Is either the start or end point of our line on the left of another line?
+    pub fn is_left_of_line(&self, other: &Line) -> bool {
+        self.start.is_left_of_line(&other) || self.end.is_left_of_line(&other)
+    }
 }

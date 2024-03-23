@@ -2,12 +2,15 @@ use clap::{arg, command, Parser};
 use std::rc::Rc;
 use std::{fs::metadata, fs::File, io::Read};
 
+mod bitmap;
 mod flats;
 mod game;
 mod geometry;
+mod info;
 mod lights;
 mod linedefs;
 mod map;
+mod map_objects;
 mod nodes;
 mod palette;
 mod pictures;

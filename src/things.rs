@@ -1,9 +1,15 @@
 use crate::wad::{MapLumpName, WadFile};
 use std::rc::Rc;
 
+#[allow(dead_code)]
+#[repr(i16)]
 #[derive(Debug)]
 pub enum ThingTypes {
     Player1Start = 1,
+    Player2Start = 2,
+    Player3Start = 3,
+    Player4Start = 4,
+    DeathMatchStart = 11,
 }
 
 #[derive(Debug)]

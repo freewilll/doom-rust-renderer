@@ -1,4 +1,6 @@
+use std::collections::HashMap;
 use std::ffi::CStr;
+use std::rc::Rc;
 use std::{fmt, str};
 
 // An enum which encodes the relative position in the wad file for map lumps
@@ -72,7 +74,8 @@ pub struct DirEntry {
 pub struct WadFile {
     pub file: Vec<u8>,
     pub header: Header,
-    dirs: Vec<DirEntry>,
+    dirs_list: Vec<Rc<DirEntry>>,
+    dirs_map: HashMap<String, Rc<DirEntry>>,
 }
 
 impl WadFile {
@@ -88,7 +91,8 @@ impl WadFile {
         let mut wad_file = WadFile {
             file: file,
             header: header,
-            dirs: Vec::new(),
+            dirs_list: Vec::new(),
+            dirs_map: HashMap::new(),
         };
 
         wad_file.load_dirs();
@@ -132,27 +136,27 @@ impl WadFile {
 
             let name = self.read_lump_name(dir_entry_offset + 8);
 
-            let dir_entry = DirEntry {
-                name: name,
+            let dir_entry = Rc::new(DirEntry {
+                name: name.clone().to_ascii_uppercase(),
                 offset: offset,
                 size: size,
-            };
-            self.dirs.push(dir_entry);
+            });
+            self.dirs_map
+                .insert(name.clone().to_ascii_uppercase(), Rc::clone(&dir_entry));
+            self.dirs_list.push(dir_entry);
         }
     }
 
     #[allow(dead_code)]
     pub fn print_dirs(&self) {
-        for dir in &self.dirs {
+        for dir in &self.dirs_list {
             println!("{:?}", dir);
         }
     }
 
     pub fn get_dir_entry(&self, name: &str) -> Result<&DirEntry, String> {
-        for (i, dir_entry) in self.dirs.iter().enumerate() {
-            if dir_entry.name == name.to_ascii_uppercase() {
-                return Ok(&self.dirs[i]);
-            }
+        if let Some(dir_entry) = self.dirs_map.get(&name.to_ascii_uppercase()) {
+            return Ok(dir_entry);
         }
 
         Err(format!("Could not find lump {}", &name))
@@ -160,9 +164,9 @@ impl WadFile {
 
     // Get lump for a map
     pub fn get_dir_entry_for_map_lump(&self, map_name: &str, lump_name: MapLumpName) -> &DirEntry {
-        for (i, dir_entry) in self.dirs.iter().enumerate() {
+        for (i, dir_entry) in self.dirs_list.iter().enumerate() {
             if dir_entry.name == map_name.to_ascii_uppercase() {
-                return &self.dirs[i + lump_name as usize];
+                return &self.dirs_list[i + lump_name as usize];
             }
         }
 
