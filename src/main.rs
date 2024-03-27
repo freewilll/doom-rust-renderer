@@ -56,8 +56,12 @@ struct Args {
     turbo: i16,
 
     // Print FPS
-    #[arg(short, long, default_value_t = false)]
+    #[arg(long, default_value_t = false)]
     print_fps: bool,
+
+    // Print player position
+    #[arg(long, default_value_t = false)]
+    print_player_position: bool,
 }
 
 pub fn main() {
@@ -66,6 +70,12 @@ pub fn main() {
     let file = read_file(&args.wad);
     let wad_file = Rc::new(WadFile::new(file));
 
-    let mut game = Game::new(wad_file, args.map.as_str(), args.turbo, args.print_fps);
+    let mut game = Game::new(
+        wad_file,
+        args.map.as_str(),
+        args.turbo,
+        args.print_fps,
+        args.print_player_position,
+    );
     game.main_loop();
 }

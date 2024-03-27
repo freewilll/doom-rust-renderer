@@ -110,11 +110,18 @@ pub struct Game {
     map_objects: MapObjects,
     sprites: Sprites,
     thinkers: Vec<Box<dyn Thinker>>,
-    print_fps: bool, // Show frames per second
+    print_fps: bool,             // Show frames per second
+    print_player_position: bool, // Print player position
 }
 
 impl Game {
-    pub fn new(wad_file: Rc<WadFile>, map_name: &str, turbo: i16, print_fps: bool) -> Game {
+    pub fn new(
+        wad_file: Rc<WadFile>,
+        map_name: &str,
+        turbo: i16,
+        print_fps: bool,
+        print_player_position: bool,
+    ) -> Game {
         let sdl_context = sdl2::init().unwrap();
         let video_subsystem = sdl_context.video().unwrap();
 
@@ -169,6 +176,7 @@ impl Game {
             sprites,
             thinkers: Vec::new(),
             print_fps,
+            print_player_position,
         };
 
         // Set initial player height
@@ -320,10 +328,12 @@ impl Game {
         // Rotation
         if !alt_down && self.pressed_keys.contains(&Keycode::Left) {
             self.player.angle += rotate_angle;
+            self.update_current_player_height();
         }
 
         if !alt_down && self.pressed_keys.contains(&Keycode::Right) {
             self.player.angle -= rotate_angle;
+            self.update_current_player_height();
         }
 
         // Strafe
@@ -355,6 +365,10 @@ impl Game {
 
     // Update the height of the player by looking at ther sector height the player is in.
     fn update_current_player_height(&mut self) {
+        if self.print_player_position {
+            println!("{:?}", self.player);
+        }
+
         if let Some(sector) = get_sector_from_vertex(&self.map, &self.player.position) {
             self.player.floor_height = sector.borrow().floor_height as f32;
         }
