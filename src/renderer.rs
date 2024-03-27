@@ -1375,14 +1375,14 @@ impl Renderer<'_> {
             let rotation = (angle * 8.0 / (2.0 * PI)) as u8;
 
             let frame = map_object.state.frame;
-            let bitmap = self.sprites.get_bitmap(sprite, frame, rotation);
+            let picture = self.sprites.get_picture(sprite, frame, rotation);
 
             // Transform so that the player position and angle is transformed
             // away.
             let moved = &map_object.position - &self.player.position;
             let view_port_vertex = moved.rotate(-self.player.angle);
 
-            let width = bitmap.width;
+            let width = picture.bitmap.width;
 
             // The picture is always centered
             let start = &view_port_vertex - &Vertex::new(0.0, -width as f32 / 2.0 as f32);
@@ -1421,8 +1421,12 @@ impl Renderer<'_> {
 
             let player_height = &self.player.floor_height + PLAYER_HEIGHT;
             let z = sector.borrow().floor_height;
-            let bottom_height = z as f32 - player_height;
-            let top_height = z as f32 + bitmap.height as f32 - 1.0 - player_height;
+            let mut bottom_height = z as f32 - player_height;
+            let mut top_height = z as f32 + picture.bitmap.height as f32 - 1.0 - player_height;
+
+            // Add picture vertical offsets
+            bottom_height += picture.top_offset as f32 - picture.bitmap.height as f32;
+            top_height += picture.top_offset as f32 - picture.bitmap.height as f32;
 
             // Make bottom and top lines
             let bottom = make_sidedef_non_vertical_line(&clipped_line.line, bottom_height);
@@ -1468,7 +1472,7 @@ impl Renderer<'_> {
             // Prepare the render object for the map object
             let mut bitmap_render = BitmapRender::new(
                 BitmapRenderState::MapObject,
-                Some(Rc::clone(&bitmap)),
+                Some(Rc::clone(&picture.bitmap)),
                 light_level,
                 clipped_line.clone(),
                 bottom.start.x,

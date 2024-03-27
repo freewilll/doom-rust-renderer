@@ -18,6 +18,7 @@ pub struct Pictures {
 
 // A picture (aka patch)
 #[allow(dead_code)]
+#[derive(Clone)]
 pub struct Picture {
     pub name: String,       // The name
     wad_offset: u32,        // Offset in the WAD file
@@ -122,6 +123,27 @@ impl Picture {
 
                 column_offset += length as usize + 4;
             }
+        }
+    }
+
+    // Create new picture with a mirror image of the picture
+    pub fn mirror(&self) -> Picture {
+        let mut bitmap = (*self.bitmap).clone();
+
+        for y in 0..bitmap.height as usize {
+            let row = &mut bitmap.pixels[y];
+            for x in 0..bitmap.width as usize / 2 as usize {
+                (row[x], row[bitmap.width as usize - 1 - x]) =
+                    (row[bitmap.width as usize - 1 - x], row[x]);
+            }
+        }
+
+        Picture {
+            name: self.name.clone(),
+            wad_offset: self.wad_offset,
+            bitmap: Rc::new(bitmap),
+            left_offset: self.left_offset,
+            top_offset: self.top_offset,
         }
     }
 }

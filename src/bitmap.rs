@@ -51,21 +51,6 @@ impl Bitmap {
             }
         }
     }
-
-    // Create new bitmap with a mirror image of the bitmap
-    pub fn mirror(&self) -> Bitmap {
-        let mut bitmap = self.clone();
-
-        for y in 0..self.height as usize {
-            let row = &mut bitmap.pixels[y];
-            for x in 0..self.width as usize / 2 as usize {
-                (row[x], row[self.width as usize - 1 - x]) =
-                    (row[self.width as usize - 1 - x], row[x]);
-            }
-        }
-
-        bitmap
-    }
 }
 
 impl fmt::Debug for Bitmap {
