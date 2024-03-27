@@ -31,8 +31,8 @@ fn write_sprites(output: &mut File, sprites: &Vec<String>) {
 
 #[repr(i16)]
 #[allow(non_camel_case_types, dead_code)]
-#[derive(Debug, Clone)]
-pub enum Sprite {
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+pub enum SpriteId {
 "#,
         )
         .unwrap();
@@ -44,6 +44,26 @@ pub enum Sprite {
     }
 
     output.write_all(b"}\n").unwrap();
+
+    output
+        .write_all(
+            format!(
+                r#"
+pub const SPRITES: [SpriteId; {}] = [
+"#,
+                sprites.len()
+            )
+            .as_bytes(),
+        )
+        .unwrap();
+
+    for sprite in sprites {
+        output
+            .write_all(format!("    SpriteId::{},\n", sprite.to_uppercase()).as_bytes())
+            .unwrap();
+    }
+
+    output.write_all(b"];\n").unwrap();
 }
 
 fn write_states(output: &mut File, states: &Vec<State>) {
@@ -74,8 +94,8 @@ pub enum StateId {
 #[allow(dead_code)]
 pub struct State {{
     pub id: StateId,           // State id
-    pub sprite: Sprite,
-    pub frame: i16,            // Frame, A=0, B=1, ...
+    pub sprite: SpriteId,
+    pub frame: u8,             // Frame, A=0, B=1, ...
     pub full_bright: bool,     // Should the sprite be rendered with full brightness?
     pub tics: i16,             // Tic count
     pub action: &'static str,  // Function name to call
@@ -93,7 +113,7 @@ pub const STATES: [State; {}] = [
 
     for state in states {
         output .write_all( format!(
-            "    State{{id: StateId::{}, sprite: Sprite::{}, frame: {}, full_bright: {}, tics: {}, action: {:?}, next_state: StateId::{}}},\n",
+            "    State{{id: StateId::{}, sprite: SpriteId::{}, frame: {}, full_bright: {}, tics: {}, action: {:?}, next_state: StateId::{}}},\n",
             state.name.to_uppercase(), state.sprite, state.frame, state.full_bright, state.tics, state.action, state.next_state.to_uppercase(),
         ).as_bytes()).unwrap();
     }

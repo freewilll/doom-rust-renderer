@@ -65,6 +65,7 @@ impl Header {
 
 #[derive(Debug)]
 pub struct DirEntry {
+    pub index: i16,   // Index in the lump list
     pub name: String, // Lump name
     pub offset: u32,  // Lump offset in file
     pub size: u32,    // Lump size
@@ -74,8 +75,10 @@ pub struct DirEntry {
 pub struct WadFile {
     pub file: Vec<u8>,
     pub header: Header,
-    dirs_list: Vec<Rc<DirEntry>>,
-    dirs_map: HashMap<String, Rc<DirEntry>>,
+    pub dirs_list: Vec<Rc<DirEntry>>,
+    pub dirs_map: HashMap<String, Rc<DirEntry>>,
+    pub first_sprite_lump: i16,
+    pub last_sprite_lump: i16,
 }
 
 impl WadFile {
@@ -93,9 +96,14 @@ impl WadFile {
             header: header,
             dirs_list: Vec::new(),
             dirs_map: HashMap::new(),
+            first_sprite_lump: -1, // Populated later
+            last_sprite_lump: -1,  // Populated later
         };
 
         wad_file.load_dirs();
+
+        wad_file.first_sprite_lump = wad_file.get_dir_entry("S_START").unwrap().index;
+        wad_file.last_sprite_lump = wad_file.get_dir_entry("S_END").unwrap().index;
 
         wad_file
     }
@@ -137,6 +145,7 @@ impl WadFile {
             let name = self.read_lump_name(dir_entry_offset + 8);
 
             let dir_entry = Rc::new(DirEntry {
+                index: i as i16,
                 name: name.clone().to_ascii_uppercase(),
                 offset: offset,
                 size: size,

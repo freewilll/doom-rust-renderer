@@ -15,10 +15,10 @@ use crate::map::Map;
 use crate::map_objects::MapObjects;
 use crate::nodes::{Node, NodeChild};
 use crate::palette::Palette;
-use crate::pictures::Pictures;
 use crate::sectors::Sector;
 use crate::segs::Seg;
 use crate::sidedefs::Sidedef;
+use crate::sprites::Sprites;
 use crate::subsectors::SubSector;
 use crate::textures::{Texture, Textures};
 use crate::vertexes::Vertex;
@@ -42,7 +42,7 @@ pub struct Renderer<'a> {
     pixels: &'a mut Pixels,
     map: &'a Map,
     textures: &'a mut Textures,
-    pictures: &'a mut Pictures,
+    sprites: &'a mut Sprites,
     sky_texture: Rc<Texture>,
     flats: &'a mut Flats,
     palette: &'a mut Palette,
@@ -718,7 +718,7 @@ impl Renderer<'_> {
         pixels: &'a mut Pixels,
         map: &'a Map,
         textures: &'a mut Textures,
-        pictures: &'a mut Pictures,
+        sprites: &'a mut Sprites,
         sky_texture: Rc<Texture>,
         flats: &'a mut Flats,
         palette: &'a mut Palette,
@@ -730,7 +730,7 @@ impl Renderer<'_> {
             pixels,
             map,
             textures,
-            pictures,
+            sprites,
             sky_texture,
             flats,
             palette,
@@ -1347,30 +1347,42 @@ impl Renderer<'_> {
 
         for map_object in self.map_objects.objects.iter() {
             let sprite = &map_object.state.sprite;
-            let frame_char = char::from_u32(65 + map_object.state.frame as u32).unwrap();
 
-            // TODO: orientation and falling back to a decent sprite
-            let picture_0 = self.pictures.get(&format!("{:?}{}0", sprite, frame_char));
-            let picture_1 = self.pictures.get(&format!("{:?}{}1", sprite, frame_char));
-            let picture_2 = self.pictures.get("ELECA0").unwrap(); // Temporary fallback
+            // Determine the rotation the player is facing the map object with. Rotations
+            // are zero-indexed, so it looks like this:
+            //        2
+            //      3 | 1
+            //       \|/
+            //     4--*----> 0   Thing is facing this direction
+            //       /|\
+            //      5 | 7
+            //        6
 
-            let picture = if let Ok(picture_1) = picture_1 {
-                picture_1
-            } else {
-                if let Ok(picture_0) = picture_0 {
-                    picture_0
-                } else {
-                    println!("Unknown sprite/frame {:?}/{}", sprite, frame_char); // TODO
-                    picture_2
-                }
-            };
+            // Some modulo & rounding acrobatics follow. Look away. this is ugly.
+            // Find relative angle
+            let mut angle = self.player.angle - &map_object.angle - PI;
+
+            // Add 22.5 degrees so that angles are rounded down to the nearest 45 degree angle
+            angle += PI / 16.0;
+
+            // Convert angle to range 0 to 2*pi
+            angle %= 2.0 * PI;
+            if angle < 0.0 {
+                angle += 2.0 * PI;
+            }
+            angle %= 2.0 * PI;
+
+            let rotation = (angle * 8.0 / (2.0 * PI)) as u8;
+
+            let frame = map_object.state.frame;
+            let bitmap = self.sprites.get_bitmap(sprite, frame, rotation);
 
             // Transform so that the player position and angle is transformed
             // away.
             let moved = &map_object.position - &self.player.position;
             let view_port_vertex = moved.rotate(-self.player.angle);
 
-            let width = picture.bitmap.width;
+            let width = bitmap.width;
 
             // The picture is always centered
             let start = &view_port_vertex - &Vertex::new(0.0, -width as f32 / 2.0 as f32);
@@ -1410,7 +1422,7 @@ impl Renderer<'_> {
             let player_height = &self.player.floor_height + PLAYER_HEIGHT;
             let z = sector.borrow().floor_height;
             let bottom_height = z as f32 - player_height;
-            let top_height = z as f32 + picture.bitmap.height as f32 - 1.0 - player_height;
+            let top_height = z as f32 + bitmap.height as f32 - 1.0 - player_height;
 
             // Make bottom and top lines
             let bottom = make_sidedef_non_vertical_line(&clipped_line.line, bottom_height);
@@ -1456,7 +1468,7 @@ impl Renderer<'_> {
             // Prepare the render object for the map object
             let mut bitmap_render = BitmapRender::new(
                 BitmapRenderState::MapObject,
-                Some(Rc::clone(&picture.bitmap)),
+                Some(Rc::clone(&bitmap)),
                 light_level,
                 clipped_line.clone(),
                 bottom.start.x,

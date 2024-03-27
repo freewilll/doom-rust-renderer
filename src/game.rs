@@ -23,6 +23,7 @@ use crate::map_objects::MapObjects;
 use crate::palette::Palette;
 use crate::pictures::Pictures;
 use crate::renderer::{get_sector_from_vertex, Pixels, Renderer};
+use crate::sprites::Sprites;
 use crate::textures::{Texture, Textures};
 use crate::things::{get_thing_by_type, ThingTypes};
 use crate::thinkers::{init_thinkers, Thinker};
@@ -107,6 +108,7 @@ pub struct Game {
     textures: Textures,
     sky_texture: Rc<Texture>,
     map_objects: MapObjects,
+    sprites: Sprites,
     thinkers: Vec<Box<dyn Thinker>>,
     print_fps: bool, // Show frames per second
 }
@@ -139,13 +141,14 @@ impl Game {
         };
 
         let palette = Palette::new(&wad_file);
-        let pictures = Pictures::new(&wad_file);
+        let mut pictures = Pictures::new(&wad_file);
         let flats = Flats::new(&wad_file);
         let mut textures = Textures::new(&wad_file);
 
         let sky_texture = Self::get_sky_texture(map_name, &mut textures);
 
         let map_objects = MapObjects::new(&map);
+        let sprites = Sprites::new(&wad_file, &mut pictures);
 
         let mut game = Game {
             sdl_context,
@@ -163,6 +166,7 @@ impl Game {
             textures,
             sky_texture: Rc::clone(&sky_texture),
             map_objects,
+            sprites,
             thinkers: Vec::new(),
             print_fps,
         };
@@ -455,7 +459,7 @@ impl Game {
                 &mut pixels,
                 &self.map,
                 &mut self.textures,
-                &mut self.pictures,
+                &mut self.sprites,
                 Rc::clone(&self.sky_texture),
                 &mut self.flats,
                 &mut self.palette,

@@ -18,6 +18,7 @@ mod renderer;
 mod sectors;
 mod segs;
 mod sidedefs;
+mod sprites;
 mod subsectors;
 mod textures;
 mod things;
