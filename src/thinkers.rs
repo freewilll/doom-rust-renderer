@@ -6,6 +6,9 @@ use crate::map_objects::{MapObjectThinker, MapObjects};
 
 pub trait Thinker {
     fn mutate(&mut self);
+    fn kill(&mut self) {}
+    fn explode(&mut self) {}
+    fn respawn(&mut self) {}
 }
 
 fn init_sector_thinkers(thinkers: &mut Vec<Box<dyn Thinker>>, map: &Map) {

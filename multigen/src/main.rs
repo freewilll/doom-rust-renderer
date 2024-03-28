@@ -3,7 +3,9 @@ use std::fs::File;
 use std::io::{self, BufRead, Write};
 
 struct DefaultMapObjectInfo {
-    spawn_state: String, // Spawn state name
+    spawn_state: String,  // Spawn state name
+    death_state: String,  // Death state name
+    xdeath_state: String, // Explosive death state name
     radius: String,
     height: String,
 }
@@ -72,7 +74,7 @@ fn write_states(output: &mut File, states: &Vec<State>) {
             br#"
 #[repr(i16)]
 #[allow(non_camel_case_types, dead_code)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum StateId {
 "#,
         )
@@ -132,6 +134,8 @@ fn parse_float(string: &str) -> i16 {
 fn parse_default_mobj_info(properties: &HashMap<String, String>) -> DefaultMapObjectInfo {
     DefaultMapObjectInfo {
         spawn_state: properties.get("spawnstate").unwrap().clone(),
+        death_state: properties.get("deathstate").unwrap().clone(),
+        xdeath_state: properties.get("xdeathstate").unwrap().clone(),
         radius: properties.get("radius").unwrap().clone(),
         height: properties.get("height").unwrap().clone(),
     }
@@ -151,6 +155,8 @@ fn write_mobj_info(
 pub struct MapObjectInfo {{
     pub id: i16,                   // Number to spawn this object
     pub spawn_state: StateId,      // Spawn state id
+    pub death_state: StateId,      // Death state name
+    pub xdeath_state: StateId,     // Explosive death state name
     pub radius: i16,               // Radius
     pub height: i16,               // Height
 }}
@@ -174,10 +180,20 @@ pub const MAP_OBJECT_INFOS: [MapObjectInfo; {}] = [
             .unwrap_or(&"-1".to_string())
             .parse::<i16>()
             .unwrap();
+
         let spawn_state = properties
             .get("spawnstate")
             .unwrap_or(&default.spawn_state)
             .clone();
+        let death_state = properties
+            .get("deathstate")
+            .unwrap_or(&default.death_state)
+            .clone();
+        let xdeath_state = properties
+            .get("xdeathstate")
+            .unwrap_or(&default.xdeath_state)
+            .clone();
+
         let radius = parse_float(properties.get("radius").unwrap_or(&default.radius));
         let height = parse_float(properties.get("height").unwrap_or(&default.height));
 
@@ -187,12 +203,16 @@ pub const MAP_OBJECT_INFOS: [MapObjectInfo; {}] = [
                     r#"    MapObjectInfo{{
         id: {},
         spawn_state: StateId::{},
+        death_state: StateId::{},
+        xdeath_state: StateId::{},
         radius: {},
         height: {},
     }},
 "#,
                     id,
                     spawn_state.to_uppercase(),
+                    death_state.to_uppercase(),
+                    xdeath_state.to_uppercase(),
                     radius,
                     height
                 )

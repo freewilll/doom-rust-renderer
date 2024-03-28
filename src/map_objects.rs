@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::info::{MapObjectInfo, State, MAP_OBJECT_INFOS, STATES};
+use crate::info::{MapObjectInfo, State, StateId, MAP_OBJECT_INFOS, STATES};
 use crate::map::Map;
 use crate::things::ThingTypes;
 use crate::thinkers::Thinker;
@@ -75,6 +75,14 @@ impl MapObjectThinker {
             count: count,
         }
     }
+
+    fn move_to_state(&mut self, state: StateId) {
+        let next_state = STATES[state as usize].clone();
+        let count = next_state.tics;
+        let mut map_object = self.map_object.borrow_mut();
+        map_object.state = next_state;
+        self.count = count;
+    }
 }
 
 impl Thinker for MapObjectThinker {
@@ -88,12 +96,48 @@ impl Thinker for MapObjectThinker {
             return;
         }
 
-        // Move to the next state
-        let next_state_id = self.map_object.borrow().state.next_state;
-        let next_state = STATES[next_state_id as usize].clone();
-        let count = next_state.tics;
-        let mut map_object = self.map_object.borrow_mut();
-        map_object.state = next_state;
-        self.count = count;
+        let next_state = self.map_object.borrow().state.next_state;
+        self.move_to_state(next_state);
+    }
+
+    fn kill(&mut self) {
+        let death_state = self.map_object.borrow().info.death_state;
+        if death_state != StateId::S_NULL {
+            self.move_to_state(death_state);
+        }
+    }
+
+    fn explode(&mut self) {
+        let xdeath_state = self.map_object.borrow().info.xdeath_state;
+        if xdeath_state != StateId::S_NULL {
+            self.move_to_state(xdeath_state);
+            return;
+        }
+
+        // Fall back to death state if there is no xdeath one
+        self.kill();
+    }
+
+    fn respawn(&mut self) {
+        let spawn_state = self.map_object.borrow().info.spawn_state;
+        self.move_to_state(spawn_state);
+    }
+}
+
+pub fn kill_everything(thinkers: &mut Vec<Box<dyn Thinker>>) {
+    for thinker in thinkers {
+        thinker.kill();
+    }
+}
+
+pub fn explode_everything(thinkers: &mut Vec<Box<dyn Thinker>>) {
+    for thinker in thinkers {
+        thinker.explode();
+    }
+}
+
+pub fn respawn_everything(thinkers: &mut Vec<Box<dyn Thinker>>) {
+    for thinker in thinkers {
+        thinker.respawn();
     }
 }

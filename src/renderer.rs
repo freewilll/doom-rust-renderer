@@ -10,6 +10,7 @@ use crate::bitmap::Bitmap;
 use crate::flats::{Flat, Flats, FLAT_SIZE};
 use crate::game::{Player, SCREEN_HEIGHT, SCREEN_WIDTH};
 use crate::geometry::Line;
+use crate::info::StateId;
 use crate::linedefs::Flags;
 use crate::map::Map;
 use crate::map_objects::MapObjects;
@@ -1353,6 +1354,11 @@ impl Renderer<'_> {
 
         for map_object in self.map_objects.objects.iter() {
             let map_object = map_object.borrow();
+
+            if map_object.state.id == StateId::S_NULL {
+                continue;
+            }
+
             let sprite = &map_object.state.sprite;
 
             // Determine the rotation the player is facing the map object with. Rotations

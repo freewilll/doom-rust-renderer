@@ -19,7 +19,7 @@ use std::time::Instant;
 use crate::flats::Flats;
 use crate::linedefs::Flags;
 use crate::map::Map;
-use crate::map_objects::MapObjects;
+use crate::map_objects::{explode_everything, kill_everything, respawn_everything, MapObjects};
 use crate::palette::Palette;
 use crate::pictures::Pictures;
 use crate::renderer::{get_sector_from_vertex, Pixels, Renderer};
@@ -395,6 +395,27 @@ impl Game {
                     ..
                 } => {
                     self.viewing_map = !self.viewing_map;
+                }
+
+                Event::KeyDown {
+                    keycode: Some(Keycode::K),
+                    ..
+                } => {
+                    kill_everything(&mut self.thinkers);
+                }
+
+                Event::KeyDown {
+                    keycode: Some(Keycode::X),
+                    ..
+                } => {
+                    explode_everything(&mut self.thinkers);
+                }
+
+                Event::KeyDown {
+                    keycode: Some(Keycode::R),
+                    ..
+                } => {
+                    respawn_everything(&mut self.thinkers);
                 }
 
                 Event::KeyDown {
