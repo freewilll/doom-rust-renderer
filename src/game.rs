@@ -181,7 +181,7 @@ impl Game {
 
         // Set initial player height
         game.update_current_player_height();
-        init_thinkers(&mut game.thinkers, &game.map);
+        init_thinkers(&mut game.thinkers, &game.map, &game.map_objects);
 
         game
     }

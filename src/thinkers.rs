@@ -2,12 +2,13 @@ use std::rc::Rc;
 
 use crate::lights::{FireFlicker, GlowingLight, LightFlash, StrobeFlash, FAST_DARK, SLOW_DARK};
 use crate::map::Map;
+use crate::map_objects::{MapObjectThinker, MapObjects};
 
 pub trait Thinker {
     fn mutate(&mut self);
 }
 
-pub fn init_thinkers(thinkers: &mut Vec<Box<dyn Thinker>>, map: &Map) {
+fn init_sector_thinkers(thinkers: &mut Vec<Box<dyn Thinker>>, map: &Map) {
     for sector in &map.sectors {
         let special_type = sector.borrow().special_type;
         match special_type {
@@ -73,4 +74,15 @@ pub fn init_thinkers(thinkers: &mut Vec<Box<dyn Thinker>>, map: &Map) {
             _ => {}
         }
     }
+}
+
+fn init_map_obj_thinkers(thinkers: &mut Vec<Box<dyn Thinker>>, map_objects: &MapObjects) {
+    for map_object in &map_objects.objects {
+        thinkers.push(Box::new(MapObjectThinker::new(Rc::clone(&map_object))));
+    }
+}
+
+pub fn init_thinkers(thinkers: &mut Vec<Box<dyn Thinker>>, map: &Map, map_objects: &MapObjects) {
+    init_sector_thinkers(thinkers, map);
+    init_map_obj_thinkers(thinkers, map_objects);
 }

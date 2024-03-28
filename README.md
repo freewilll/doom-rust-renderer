@@ -41,6 +41,7 @@ cargo run -r -- --help
 - Light diminishing
 - Blinking lights
 - Animated floors
+- Map object thinkers state machine - provides animations
 - 2D map
 - Moving around with keyboard: arrows, shift, strafe, turbo
 

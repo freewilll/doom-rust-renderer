@@ -1352,6 +1352,7 @@ impl Renderer<'_> {
         let mut map_object_bitmap_renders: Vec<BitmapRender> = Vec::new();
 
         for map_object in self.map_objects.objects.iter() {
+            let map_object = map_object.borrow();
             let sprite = &map_object.state.sprite;
 
             // Determine the rotation the player is facing the map object with. Rotations
