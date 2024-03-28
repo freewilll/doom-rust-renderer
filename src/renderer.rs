@@ -1448,7 +1448,34 @@ impl Renderer<'_> {
             // Loop over all segs and fill out the seg_clip arrays.
             for seg in &mut self.segs {
                 // Ignore segs behind the map object
-                if !view_port_vertex.is_left_of_line(&seg.clipped_line.line) {
+
+                // The following logic can be found in R_DrawSprite in r_things.c.
+
+                // Determine the x coordinate of the line closest (min) and furthest (max) from us
+                let min_x = seg
+                    .clipped_line
+                    .line
+                    .start
+                    .x
+                    .min(seg.clipped_line.line.end.x);
+                let max_x = seg
+                    .clipped_line
+                    .line
+                    .start
+                    .x
+                    .max(seg.clipped_line.line.end.x);
+
+                // The entire line is behind the thing
+                if min_x > view_port_vertex.x {
+                    continue;
+                }
+
+                // The line is either to the left or the right of the thing from our
+                // point of view. If the thing is on the line's right, then the line is
+                // behind it.
+                if max_x > view_port_vertex.x
+                    && !view_port_vertex.is_left_of_line(&seg.clipped_line.line)
+                {
                     continue;
                 }
 
