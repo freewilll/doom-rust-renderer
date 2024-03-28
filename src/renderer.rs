@@ -23,7 +23,7 @@ use crate::subsectors::SubSector;
 use crate::textures::{Texture, Textures};
 use crate::vertexes::Vertex;
 
-const PLAYER_HEIGHT: f32 = 41.0;
+const PLAYER_EYE_HEIGHT: f32 = 41.0;
 
 // The game ran on 320x200 but ended up on monitors with squarepixels and  320x240
 // https://doomwiki.org/wiki/Aspect_ratio#:~:text=it%20was%20wide.-,Design%20of%20graphics,to%20this%20hardware%20video%20mode.
@@ -34,9 +34,10 @@ pub const ASPECT_RATIO_CORRECTION: f32 = 200.0 / 240.0;
 // is everything being shown on the screen as it would have on the original
 // VGA screens.
 pub const GAME_SCREEN_WIDTH: f32 = SCREEN_WIDTH as f32 / ASPECT_RATIO_CORRECTION;
-pub const GAME_CAMERA_FOCUS: f32 = GAME_SCREEN_WIDTH as f32 / 2.0 as f32;
+pub const GAME_CAMERA_FOCUS_X: f32 = GAME_SCREEN_WIDTH as f32 / 2.0 as f32;
 
-pub const CAMERA_FOCUS: f32 = SCREEN_WIDTH as f32 / 2.0;
+pub const CAMERA_FOCUS_X: f32 = SCREEN_WIDTH as f32 / 2.0;
+pub const CAMERA_FOCUS_Y: f32 = SCREEN_HEIGHT as f32 / 2.0;
 
 pub struct Renderer<'a> {
     pixels: &'a mut Pixels,
@@ -165,7 +166,7 @@ fn perspective_transform(v: &Vertex, y: f32) -> Vertex {
     let x = v.y;
     let z = v.x;
 
-    Vertex::new(GAME_CAMERA_FOCUS * x / z, GAME_CAMERA_FOCUS * y / z)
+    Vertex::new(GAME_CAMERA_FOCUS_X * x / z, GAME_CAMERA_FOCUS_X * y / z)
 }
 
 fn clip_to_viewport(line: &Line) -> Option<ClippedLine> {
@@ -291,13 +292,13 @@ fn make_sidedef_non_vertical_line(line: &Line, height: f32) -> SdlLine {
     transformed_end.x *= ASPECT_RATIO_CORRECTION;
 
     let mut screen_start = Point::new(
-        ((CAMERA_FOCUS - &transformed_start.x) as i32).into(),
-        ((CAMERA_FOCUS - &transformed_start.y) as i32).into(),
+        ((CAMERA_FOCUS_X - &transformed_start.x) as i32).into(),
+        ((CAMERA_FOCUS_Y - &transformed_start.y) as i32).into(),
     );
 
     let mut screen_end = Point::new(
-        ((CAMERA_FOCUS - &transformed_end.x) as i32).into(),
-        ((CAMERA_FOCUS - &transformed_end.y) as i32).into(),
+        ((CAMERA_FOCUS_X - &transformed_end.x) as i32).into(),
+        ((CAMERA_FOCUS_Y - &transformed_end.y) as i32).into(),
     );
 
     screen_start.x = screen_start.x.min(SCREEN_WIDTH as i32 - 1);
@@ -667,12 +668,12 @@ fn draw_visplane(
             // to world coordinates.
 
             // Transform to viewport coordinates (v prefix) (the reverse of make_sidedef_non_vertical_line)
-            let vx = (CAMERA_FOCUS - x as f32) / ASPECT_RATIO_CORRECTION;
-            let vy = CAMERA_FOCUS - y as f32;
+            let vx = (CAMERA_FOCUS_X - x as f32) / ASPECT_RATIO_CORRECTION;
+            let vy = CAMERA_FOCUS_Y - y as f32;
 
             // Inverse perspective transform to world coordinates (w prefix)
-            let wz = visplane.height as f32 - player.floor_height - PLAYER_HEIGHT;
-            let wx = GAME_CAMERA_FOCUS * wz / vy as f32;
+            let wz = visplane.height as f32 - player.floor_height - PLAYER_EYE_HEIGHT;
+            let wx = GAME_CAMERA_FOCUS_X * wz / vy as f32;
             let wy = wz * vx as f32 / vy as f32;
 
             // Translate and rotate to player view
@@ -1103,7 +1104,7 @@ impl Renderer<'_> {
         }
 
         // Draw the non-vertial lines for all parts of the wall
-        let player_height = &self.player.floor_height + PLAYER_HEIGHT;
+        let player_height = &self.player.floor_height + PLAYER_EYE_HEIGHT;
 
         // Check one line to ensure we're not facing the back of it
         let floor =
@@ -1419,7 +1420,7 @@ impl Renderer<'_> {
                 sector.borrow().light_level
             };
 
-            let player_height = &self.player.floor_height + PLAYER_HEIGHT;
+            let player_height = &self.player.floor_height + PLAYER_EYE_HEIGHT;
             let z = sector.borrow().floor_height;
             let mut bottom_height = z as f32 - player_height;
             let mut top_height = z as f32 + picture.bitmap.height as f32 - 1.0 - player_height;
