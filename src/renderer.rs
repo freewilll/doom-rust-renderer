@@ -663,6 +663,11 @@ fn draw_visplane(
         let top = visplane.top[x as usize].max(0);
         let bottom = visplane.bottom[x as usize].min(SCREEN_HEIGHT as i16 - 1);
 
+        // Don 't draw one pixel visplanes; they look like ugly solid horizontal lines
+        if bottom - top <= 1 {
+            continue;
+        }
+
         for y in top..bottom + 1 {
             // x and y are in screen coordinates. We need to go backwards all the way
             // to world coordinates.
