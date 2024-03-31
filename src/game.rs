@@ -493,13 +493,13 @@ impl Game {
             Renderer::new(
                 &mut pixels,
                 &self.map,
+                &self.map_objects,
                 &mut self.textures,
                 &mut self.sprites,
                 Rc::clone(&self.sky_texture),
                 &mut self.flats,
                 &mut self.palette,
                 &self.player,
-                &self.map_objects,
                 self.clock.timestamp,
             )
             .render();
