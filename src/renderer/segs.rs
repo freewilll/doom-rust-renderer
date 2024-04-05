@@ -248,8 +248,8 @@ impl Segs<'_> {
                                 sds.sidedef.y_offset as i16 + offset_y as i16,
                                 // Column details
                                 x.into(),
-                                clipped_top_y.into(),
                                 clipped_bottom_y.into(),
+                                clipped_top_y.into(),
                                 bottom_y.into(),
                                 top_y.into(),
                             );

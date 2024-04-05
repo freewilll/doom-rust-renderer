@@ -114,8 +114,8 @@ impl BitmapRender {
                     self.offset_x,
                     self.offset_y,
                     column.x,
-                    column.clipped_top_y,
                     column.clipped_bottom_y,
+                    column.clipped_top_y,
                     column.bottom_y,
                     column.top_y,
                 );
@@ -175,7 +175,7 @@ pub fn diminish_color(color: &Color, light_level: i16, distance: i16) -> Color {
 pub fn render_vertical_bitmap_line(
     pixels: &mut Pixels,
     palette: &Palette,
-    bitmap: &Bitmap,            // The texture or pictures' bitmap
+    bitmap: &Bitmap,            // The texture or picture's bitmap
     light_level: i16,           // Sector light level
     clipped_line: &ClippedLine, // The clipped line in viewport coordinates
     start_x: i32,               // The clipped line x start in screen coordinates
@@ -185,8 +185,8 @@ pub fn render_vertical_bitmap_line(
     offset_x: i16,              // Texture offset in viewport coordinates
     offset_y: i16,              // Texture offset in viewport coordinates
     x: i32,                     // The x coordinate in screen coordinate
-    clipped_top_y: i32,         // The y region to draw in screen coordinates
     clipped_bottom_y: i32,      // The y region to draw in screen coordinates
+    clipped_top_y: i32,         // The y region to draw in screen coordinates
     bottom_y: i32,              // Full vertical line in screen coordinates
     top_y: i32,                 // Full vertical line in screen coordinates
 ) {
