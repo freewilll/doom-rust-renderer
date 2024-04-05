@@ -171,6 +171,7 @@ impl Segs<'_> {
             sidedef.y_offset as i16 + offset_y as i16,
             is_lower_wall || (!is_two_sided_middle_wall && is_full_height_wall),
             is_upper_wall || (!is_two_sided_middle_wall && is_full_height_wall),
+            draw_ceiling,
         );
 
         for x in bottom.start.x as i16..bottom.end.x as i16 + 1 {
@@ -194,7 +195,7 @@ impl Segs<'_> {
                 clipped_top_y = max(0, clipped_top_y);
 
                 // Include special case of clipped_bottom_y == clipped_top_y, which
-                // takes care of zero-height sectors, e.g. sector 16 on the ourside
+                // takes care of zero-height sectors, e.g. sector 16 on the outside
                 // of the outside area in e1m1
                 let in_ver_clipped_area = clipped_bottom_y >= clipped_top_y;
 

@@ -38,6 +38,7 @@ pub struct BitmapRender {
     offset_y: i16,              // Texture offset in viewport coordinates
     pub extends_to_bottom: bool, // Used to clip map objects against solid walls
     pub extends_to_top: bool,   // Used to clip map objects against solid walls
+    pub draw_ceiling: bool,     // Set to false in a special case for sky texture
     pub columns: Vec<BitmapColumn>, // The columns
 }
 
@@ -55,6 +56,7 @@ impl BitmapRender {
         offset_y: i16,              // Texture offset in viewport coordinates
         extends_to_bottom: bool,    // Used to clip things against solid walls
         extends_to_top: bool,       // Used to clip things against solid walls
+        draw_ceiling: bool,         // Set to false in a special case for sky texture
     ) -> BitmapRender {
         BitmapRender {
             state,
@@ -69,6 +71,7 @@ impl BitmapRender {
             offset_y,
             extends_to_bottom,
             extends_to_top,
+            draw_ceiling,
             columns: vec![],
         }
     }

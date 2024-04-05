@@ -180,7 +180,13 @@ pub fn draw_map_objects(
                 } else if seg.state == BitmapRenderState::TwoSidedSeg {
                     // For portals, it's everything above and below the portal top &
                     // bottom.
-                    top_seg_clip[x] = top_seg_clip[x].max(column.top_y as i16);
+
+                    // Clip the top unless there is no ceiling due to the sky hack.
+                    // https://doomwiki.org/wiki/Sky_hack
+                    if seg.draw_ceiling {
+                        top_seg_clip[x] = top_seg_clip[x].max(column.top_y as i16);
+                    }
+
                     bottom_seg_clip[x] = bottom_seg_clip[x].min(column.bottom_y as i16);
                 }
             }
@@ -198,6 +204,7 @@ pub fn draw_map_objects(
             top_height,
             0,
             0,
+            false,
             false,
             false,
         );
