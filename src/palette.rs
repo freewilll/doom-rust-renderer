@@ -16,9 +16,9 @@ impl Palette {
 
         let mut colors = [Color::RGB(0, 0, 0); 256];
 
-        for i in 0..256 {
-            colors[i] = Color::RGB(
-                wad_file.file[offset + i * 3 + 0],
+        for (i, color) in colors.iter_mut().enumerate() {
+            *color = Color::RGB(
+                wad_file.file[offset + i * 3],
                 wad_file.file[offset + i * 3 + 1],
                 wad_file.file[offset + i * 3 + 2],
             );

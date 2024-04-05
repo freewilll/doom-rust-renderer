@@ -31,10 +31,10 @@ use wad::WadFile;
 
 // Read a file into a u8 vector
 fn read_file(filename: &str) -> Vec<u8> {
-    let mut f = File::open(&filename).expect("Unable to open file");
-    let metadata = metadata(&filename).expect("Unable to get metadata");
+    let mut f = File::open(filename).expect("Unable to open file");
+    let metadata = metadata(filename).expect("Unable to get metadata");
     let mut result = vec![0; metadata.len() as usize];
-    f.read(&mut result).expect("Unable to read file");
+    f.read_exact(&mut result).expect("Unable to read file");
 
     result
 }

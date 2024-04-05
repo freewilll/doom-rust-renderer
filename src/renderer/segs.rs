@@ -26,7 +26,7 @@ use super::visplanes::Visplane;
 pub struct Segs<'a> {
     // Game state
     pub pixels: &'a mut Pixels,
-    pub palette: &'a mut Palette,
+    pub palette: &'a Palette,
     pub player: &'a Player,
     textures: &'a mut Textures,
     flats: &'a mut Flats,
@@ -47,7 +47,7 @@ impl Segs<'_> {
         pixels: &'a mut Pixels,
         textures: &'a mut Textures,
         flats: &'a mut Flats,
-        palette: &'a mut Palette,
+        palette: &'a Palette,
         player: &'a Player,
         timestamp: f32,
     ) -> Segs<'a> {
@@ -208,11 +208,11 @@ impl Segs<'_> {
                         if let Some(texture) = &texture {
                             render_vertical_bitmap_line(
                                 // Wall/portal details
-                                &mut self.pixels,
-                                &self.palette,
+                                self.pixels,
+                                self.palette,
                                 &texture.bitmap,
                                 light_level,
-                                &clipped_line,
+                                clipped_line,
                                 bottom.start.x,
                                 bottom.end.x,
                                 bottom_height,
@@ -239,22 +239,23 @@ impl Segs<'_> {
                     let mut visplane_added = false;
 
                     // Process bottom visplane
-                    if clipped_bottom_y < floor_ver_ocl {
-                        if clipped_bottom_y != SCREEN_HEIGHT as i16 - 1 {
-                            sidedef_visplanes.add_bottom_point(x, clipped_bottom_y, floor_ver_ocl);
-                            visplane_added = true;
-                        }
+                    if clipped_bottom_y < floor_ver_ocl
+                        && clipped_bottom_y != SCREEN_HEIGHT as i16 - 1
+                    {
+                        sidedef_visplanes.add_bottom_point(x, clipped_bottom_y, floor_ver_ocl);
+                        visplane_added = true;
                     }
 
                     // Process top visplane
-                    if !is_two_sided_middle_wall && draw_ceiling && clipped_top_y > ceiling_ver_ocl
+                    if !is_two_sided_middle_wall
+                        && draw_ceiling
+                        && clipped_top_y > ceiling_ver_ocl
+                        && clipped_top_y != -1
                     {
-                        if clipped_top_y != -1 {
-                            if draw_ceiling {
-                                sidedef_visplanes.add_top_point(x, ceiling_ver_ocl, clipped_top_y);
-                            }
-                            visplane_added = true;
+                        if draw_ceiling {
+                            sidedef_visplanes.add_top_point(x, ceiling_ver_ocl, clipped_top_y);
                         }
+                        visplane_added = true;
                     }
 
                     if !visplane_added {
@@ -407,7 +408,7 @@ impl Segs<'_> {
         }
 
         // Draw the non-vertial lines for all parts of the wall
-        let player_height = &self.player.floor_height + PLAYER_EYE_HEIGHT;
+        let player_height = self.player.floor_height + PLAYER_EYE_HEIGHT;
 
         // Check one line to ensure we're not facing the back of it
         let floor =
@@ -462,7 +463,7 @@ impl Segs<'_> {
             // Draw the solid wall texture
             self.process_sidedef(
                 &clipped_line,
-                Rc::clone(&front_sidedef),
+                Rc::clone(front_sidedef),
                 floor_height - player_height,
                 ceiling_height - player_height,
                 seg.offset,
@@ -485,7 +486,7 @@ impl Segs<'_> {
             // Process the portal's full height, only occlusions + visplanes are added
             self.process_sidedef(
                 &clipped_line,
-                Rc::clone(&front_sidedef),
+                Rc::clone(front_sidedef),
                 floor_height - player_height,
                 ceiling_height - player_height,
                 seg.offset,
@@ -519,7 +520,7 @@ impl Segs<'_> {
 
             self.process_sidedef(
                 &clipped_line,
-                Rc::clone(&front_sidedef),
+                Rc::clone(front_sidedef),
                 mid_texture_floor_height - player_height,
                 mid_texture_ceiling_height - player_height,
                 seg.offset,
@@ -549,7 +550,7 @@ impl Segs<'_> {
 
                 self.process_sidedef(
                     &clipped_line,
-                    Rc::clone(&front_sidedef),
+                    Rc::clone(front_sidedef),
                     floor_height - player_height,
                     portal_bottom_height - player_height,
                     seg.offset,
@@ -580,7 +581,7 @@ impl Segs<'_> {
 
                 self.process_sidedef(
                     &clipped_line,
-                    Rc::clone(&front_sidedef),
+                    Rc::clone(front_sidedef),
                     portal_top_height - player_height,
                     ceiling_height - player_height,
                     seg.offset,
@@ -604,7 +605,7 @@ impl Segs<'_> {
     // Draw remaining two sided segs
     pub fn draw_remaining_segs(&mut self) {
         for seg in &mut self.segs {
-            seg.render(&mut self.pixels, &self.palette);
+            seg.render(self.pixels, self.palette);
         }
     }
 }

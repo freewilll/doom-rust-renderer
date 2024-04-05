@@ -42,7 +42,7 @@ impl Sprites {
 
                     found_sprites
                         .entry(frame)
-                        .or_insert_with(|| HashMap::new())
+                        .or_default()
                         .insert(rotation, Rc::clone(&picture));
 
                     if dir_entry.name.len() > 6 {
@@ -51,7 +51,7 @@ impl Sprites {
 
                         found_sprites
                             .entry(frame)
-                            .or_insert_with(|| HashMap::new())
+                            .or_default()
                             .insert(rotation, Rc::new(picture.mirror()));
                     }
                 }
@@ -65,7 +65,7 @@ impl Sprites {
                 let rotate = rotations.keys().len() != 1;
 
                 let mut sprite_frame = SpriteFrame {
-                    rotate: rotate,
+                    rotate,
                     pictures: Vec::with_capacity(8),
                 };
 
@@ -79,7 +79,7 @@ impl Sprites {
                         );
                     }
 
-                    for rotation in 1..9 as u8 {
+                    for rotation in 1..9_u8 {
                         let sprite_frame_picture = rotations.get(&rotation).unwrap();
                         sprite_frame.pictures.push(sprite_frame_picture.clone());
                     }
@@ -93,11 +93,11 @@ impl Sprites {
             map.insert(sprite_id, sprite);
         }
 
-        Sprites { map: map }
+        Sprites { map }
     }
 
     pub fn get_picture(&self, sprite_id: &SpriteId, frame_id: u8, rotation: u8) -> Rc<Picture> {
-        let sprite = self.map.get(&sprite_id).unwrap();
+        let sprite = self.map.get(sprite_id).unwrap();
         let frame = sprite
             .frames
             .get(&frame_id)
@@ -113,6 +113,6 @@ impl Sprites {
             &frame.pictures[0]
         };
 
-        Rc::clone(&sprite_frame_picture)
+        Rc::clone(sprite_frame_picture)
     }
 }

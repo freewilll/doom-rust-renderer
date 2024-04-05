@@ -18,19 +18,19 @@ pub enum MapLumpName {
     Blockmap,   // A grid of blocks used for collision detection
 }
 
-impl ToString for MapLumpName {
-    fn to_string(&self) -> String {
+impl fmt::Display for MapLumpName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            MapLumpName::Things => "THINGS".to_string(),
-            MapLumpName::Linedefs => "LINEDEFS".to_string(),
-            MapLumpName::Sidedefs => "SIDEDEFS".to_string(),
-            MapLumpName::Vertexes => "VERTEXES".to_string(),
-            MapLumpName::Segs => "SEGS".to_string(),
-            MapLumpName::Ssectors => "SSECTORS".to_string(),
-            MapLumpName::Nodes => "NODES".to_string(),
-            MapLumpName::Sectors => "SECTORS".to_string(),
-            MapLumpName::Reject => "REJECT".to_string(),
-            MapLumpName::Blockmap => "BLOCKMAP".to_string(),
+            MapLumpName::Things => write!(f, "THINGS"),
+            MapLumpName::Linedefs => write!(f, "LINEDEFS"),
+            MapLumpName::Sidedefs => write!(f, "SIDEDEFS"),
+            MapLumpName::Vertexes => write!(f, "VERTEXES"),
+            MapLumpName::Segs => write!(f, "SEGS"),
+            MapLumpName::Ssectors => write!(f, "SSECTORS"),
+            MapLumpName::Nodes => write!(f, "NODES"),
+            MapLumpName::Sectors => write!(f, "SECTORS"),
+            MapLumpName::Reject => write!(f, "REJECT"),
+            MapLumpName::Blockmap => write!(f, "BLOCKMAP"),
         }
     }
 }
@@ -92,8 +92,8 @@ impl WadFile {
         }
 
         let mut wad_file = WadFile {
-            file: file,
-            header: header,
+            file,
+            header,
             dirs_list: Vec::new(),
             dirs_map: HashMap::new(),
             first_sprite_lump: -1, // Populated later
@@ -147,8 +147,8 @@ impl WadFile {
             let dir_entry = Rc::new(DirEntry {
                 index: i as i16,
                 name: name.clone().to_ascii_uppercase(),
-                offset: offset,
-                size: size,
+                offset,
+                size,
             });
             self.dirs_map
                 .insert(name.clone().to_ascii_uppercase(), Rc::clone(&dir_entry));
@@ -179,11 +179,7 @@ impl WadFile {
             }
         }
 
-        panic!(
-            "Could not find lump {} in map {}",
-            lump_name.to_string(),
-            map_name
-        );
+        panic!("Could not find lump {} in map {}", lump_name, map_name);
     }
 
     pub fn read_i16(&self, offset: usize) -> i16 {

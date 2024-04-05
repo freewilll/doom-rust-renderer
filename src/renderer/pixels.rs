@@ -24,9 +24,9 @@ impl Pixels {
             return;
         }
 
-        self.pixels[3 * (y as usize * SCREEN_WIDTH as usize + x as usize) + 0] = color.r;
-        self.pixels[3 * (y as usize * SCREEN_WIDTH as usize + x as usize) + 1] = color.g;
-        self.pixels[3 * (y as usize * SCREEN_WIDTH as usize + x as usize) + 2] = color.b;
+        self.pixels[3 * (y * SCREEN_WIDTH as usize + x)] = color.r;
+        self.pixels[3 * (y * SCREEN_WIDTH as usize + x) + 1] = color.g;
+        self.pixels[3 * (y * SCREEN_WIDTH as usize + x) + 2] = color.b;
     }
 
     // Draw a vertical line
@@ -40,7 +40,7 @@ impl Pixels {
                 continue;
             }
 
-            self.pixels[3 * (y as usize * SCREEN_WIDTH as usize + x as usize) + 0] = color.r;
+            self.pixels[3 * (y as usize * SCREEN_WIDTH as usize + x as usize)] = color.r;
             self.pixels[3 * (y as usize * SCREEN_WIDTH as usize + x as usize) + 1] = color.g;
             self.pixels[3 * (y as usize * SCREEN_WIDTH as usize + x as usize) + 2] = color.b;
         }

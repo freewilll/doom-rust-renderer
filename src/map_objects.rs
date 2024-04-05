@@ -72,7 +72,7 @@ impl MapObjectThinker {
 
         MapObjectThinker {
             map_object,
-            count: count,
+            count,
         }
     }
 

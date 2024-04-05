@@ -16,8 +16,8 @@ pub struct Seg {
 
 pub fn load_segs(
     wad_file: &WadFile,
-    vertexes: &Vec<Rc<Vertex>>,
-    linedefs: &Vec<Rc<Linedef>>,
+    vertexes: &[Rc<Vertex>],
+    linedefs: &[Rc<Linedef>],
     map_name: &str,
 ) -> Vec<Rc<Seg>> {
     let dir_entry = wad_file.get_dir_entry_for_map_lump(map_name, MapLumpName::Segs);

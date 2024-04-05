@@ -32,8 +32,8 @@ pub struct Linedef {
 
 pub fn load_linedefs(
     wad_file: &WadFile,
-    vertexes: &Vec<Rc<Vertex>>,
-    sidedefs: &Vec<Rc<Sidedef>>,
+    vertexes: &[Rc<Vertex>],
+    sidedefs: &[Rc<Sidedef>],
     map_name: &str,
 ) -> Vec<Rc<Linedef>> {
     let dir_entry = wad_file.get_dir_entry_for_map_lump(map_name, MapLumpName::Linedefs);
@@ -64,8 +64,8 @@ pub fn load_linedefs(
             flags: wad_file.read_i16(offset + 4),
             special_type: wad_file.read_i16(offset + 6),
             sector_tag: wad_file.read_i16(offset + 8),
-            front_sidedef: front_sidedef,
-            back_sidedef: back_sidedef,
+            front_sidedef,
+            back_sidedef,
         };
         results.push(Rc::new(linedef));
     }

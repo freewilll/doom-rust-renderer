@@ -7,11 +7,7 @@ pub struct SubSector {
     pub segs: Vec<Rc<Seg>>,
 }
 
-pub fn load_subsectors(
-    wad_file: &WadFile,
-    segs: &Vec<Rc<Seg>>,
-    map_name: &str,
-) -> Vec<Rc<SubSector>> {
+pub fn load_subsectors(wad_file: &WadFile, segs: &[Rc<Seg>], map_name: &str) -> Vec<Rc<SubSector>> {
     let dir_entry = wad_file.get_dir_entry_for_map_lump(map_name, MapLumpName::Ssectors);
     let count = dir_entry.size as usize / 4; // A subsector is 4 bytes long
 

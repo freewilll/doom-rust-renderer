@@ -17,7 +17,7 @@ pub struct Sidedef {
 
 pub fn load_sidedefs(
     wad_file: &WadFile,
-    sectors: &Vec<Rc<RefCell<Sector>>>,
+    sectors: &[Rc<RefCell<Sector>>],
     map_name: &str,
 ) -> Vec<Rc<Sidedef>> {
     let dir_entry = wad_file.get_dir_entry_for_map_lump(map_name, MapLumpName::Sidedefs);

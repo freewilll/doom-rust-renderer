@@ -4,6 +4,7 @@ use std::rc::Rc;
 #[allow(dead_code)]
 #[repr(i16)]
 #[derive(Debug)]
+#[allow(clippy::enum_variant_names)]
 pub enum ThingTypes {
     Player1Start = 1,
     Player2Start = 2,

@@ -53,9 +53,9 @@ pub struct Textures {
 
 impl Patch {
     // Lazy load the picture if not already done
-    pub fn get_picture(&mut self, pnames: &Vec<Pname>) -> Rc<Picture> {
+    pub fn get_picture(&mut self, pnames: &[Pname]) -> Rc<Picture> {
         if let Some(picture) = &self.picture {
-            return Rc::clone(&picture);
+            return Rc::clone(picture);
         };
 
         let patch_name = &pnames[self.patch_number as usize].name;
@@ -69,7 +69,7 @@ impl Patch {
 impl Texture {
     // Load a texture by first loading all the patches, then setting
     // the pixels from the patches.
-    fn load(definition: &mut TextureDefinition, pnames: &Vec<Pname>, bitmap: &mut Bitmap) {
+    fn load(definition: &mut TextureDefinition, pnames: &[Pname], bitmap: &mut Bitmap) {
         bitmap.pixels = Vec::with_capacity(bitmap.height as usize);
         for _ in 0..bitmap.height as usize {
             let mut row = Vec::new();
@@ -142,7 +142,7 @@ impl Textures {
 
         // TEXTURE2 is only present in the registered version of Doom 1
         if let Ok(dir_entry) = wad_file.get_dir_entry("TEXTURE2") {
-            textures.load_texture_list(&dir_entry);
+            textures.load_texture_list(dir_entry);
         }
 
         textures
@@ -157,7 +157,7 @@ impl Textures {
 
         // Already loaded
         if let Some(texture) = &definition.texture {
-            return Rc::clone(&texture);
+            return Rc::clone(texture);
         }
 
         let mut bitmap = Bitmap::new(definition.width, definition.height, Vec::new());
@@ -225,7 +225,7 @@ impl Textures {
             for j in 0..patch_count as usize {
                 let patch_offset = patch0_offset + j * 10;
 
-                let origin_x = wad_file.read_i16(patch_offset + 0);
+                let origin_x = wad_file.read_i16(patch_offset);
                 let origin_y = wad_file.read_i16(patch_offset + 2);
                 let patch_number = wad_file.read_i16(patch_offset + 4);
 
@@ -234,7 +234,7 @@ impl Textures {
                     origin_y,
                     patch_number,
                     picture: None,
-                    wad_file: Rc::clone(&wad_file),
+                    wad_file: Rc::clone(wad_file),
                 };
 
                 patches.push(patch);

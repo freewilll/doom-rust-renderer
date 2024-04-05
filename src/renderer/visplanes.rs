@@ -28,7 +28,7 @@ pub struct Visplane {
 impl Visplane {
     pub fn new(flat: &Rc<Flat>, height: i16, light_level: i16) -> Visplane {
         Visplane {
-            flat: Rc::clone(&flat),
+            flat: Rc::clone(flat),
             height,
             light_level,
             left: -1,
@@ -108,8 +108,8 @@ pub fn draw_visplane(
 
             // Inverse perspective transform to world coordinates (w prefix)
             let wz = visplane.height as f32 - player.floor_height - PLAYER_EYE_HEIGHT;
-            let wx = GAME_CAMERA_FOCUS_X * wz / vy as f32;
-            let wy = wz * vx as f32 / vy as f32;
+            let wx = GAME_CAMERA_FOCUS_X * wz / vy;
+            let wy = wz * vx / vy;
 
             // Translate and rotate to player view
             let rotated = Vertex::new(wx, wy).rotate(player.angle);
@@ -117,8 +117,8 @@ pub fn draw_visplane(
             let mut tx: i16 = rotated.x as i16 + player.position.x as i16;
             let mut ty: i16 = rotated.y as i16 + player.position.y as i16;
 
-            tx = tx & (FLAT_SIZE - 1);
-            ty = ty & (FLAT_SIZE - 1);
+            tx &= FLAT_SIZE - 1;
+            ty &= FLAT_SIZE - 1;
 
             let color = palette.colors[visplane.flat.pixels[ty as usize][tx as usize] as usize];
             let diminished_color = diminish_color(&color, visplane.light_level, wx as i16);

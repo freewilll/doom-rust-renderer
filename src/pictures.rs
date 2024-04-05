@@ -83,7 +83,7 @@ impl Picture {
 
         let mut bitmap = Bitmap::new(width, height, pixels);
 
-        Self::read_pixels(&wad_file, dir_entry.offset, &mut bitmap);
+        Self::read_pixels(wad_file, dir_entry.offset, &mut bitmap);
 
         let picture = Picture {
             name: name.to_string(),
@@ -132,7 +132,7 @@ impl Picture {
 
         for y in 0..bitmap.height as usize {
             let row = &mut bitmap.pixels[y];
-            for x in 0..bitmap.width as usize / 2 as usize {
+            for x in 0..bitmap.width as usize / 2_usize {
                 (row[x], row[bitmap.width as usize - 1 - x]) =
                     (row[bitmap.width as usize - 1 - x], row[x]);
             }

@@ -47,7 +47,7 @@ impl Renderer<'_> {
         sprites: &'a mut Sprites,
         sky_texture: Rc<Texture>,
         flats: &'a mut Flats,
-        palette: &'a mut Palette,
+        palette: &'a Palette,
         player: &'a Player,
         timestamp: f32,
     ) -> Renderer<'a> {
@@ -65,7 +65,7 @@ impl Renderer<'_> {
     // Process all segs in a subsector
     fn process_subsector(&mut self, subsector: &SubSector) {
         for seg in &subsector.segs {
-            self.segs.process_seg(&seg);
+            self.segs.process_seg(seg);
         }
     }
 
@@ -89,10 +89,10 @@ impl Renderer<'_> {
 
         match front_child {
             NodeChild::Node(node) => {
-                self.render_node(&node);
+                self.render_node(node);
             }
             NodeChild::SubSector(subsector) => {
-                self.process_subsector(&subsector);
+                self.process_subsector(subsector);
             }
         }
 
@@ -100,10 +100,10 @@ impl Renderer<'_> {
         // if the player view intersects with it.
         match back_child {
             NodeChild::Node(node) => {
-                self.render_node(&node);
+                self.render_node(node);
             }
             NodeChild::SubSector(subsector) => {
-                self.process_subsector(&subsector);
+                self.process_subsector(subsector);
             }
         }
     }
@@ -111,11 +111,11 @@ impl Renderer<'_> {
     fn draw_visplanes(&mut self) {
         for visplane in &self.segs.visplanes {
             draw_visplane(
-                &mut self.segs.pixels,
-                &self.segs.palette,
-                &self.segs.player,
+                self.segs.pixels,
+                self.segs.palette,
+                self.segs.player,
                 Rc::clone(&self.sky_texture),
-                &visplane,
+                visplane,
             );
         }
     }
@@ -129,12 +129,12 @@ impl Renderer<'_> {
         self.segs.segs.reverse(); // Sort segs back to front
         draw_map_objects(
             &mut self.segs.segs,
-            &mut self.segs.pixels,
-            &self.map_objects,
-            &self.segs.player,
-            &self.sprites,
-            &self.map,
-            &self.segs.palette,
+            self.segs.pixels,
+            self.map_objects,
+            self.segs.player,
+            self.sprites,
+            self.map,
+            self.segs.palette,
         );
 
         self.segs.draw_remaining_segs();

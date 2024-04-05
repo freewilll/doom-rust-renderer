@@ -51,7 +51,7 @@ pub fn draw_map_objects(
 
         // Some modulo & rounding acrobatics follow. Look away. this is ugly.
         // Find relative angle
-        let mut angle = player.angle - &map_object.angle - PI;
+        let mut angle = player.angle - map_object.angle - PI;
 
         // Add 22.5 degrees so that angles are rounded down to the nearest 45 degree angle
         angle += PI / 16.0;
@@ -76,8 +76,8 @@ pub fn draw_map_objects(
         let width = picture.bitmap.width;
 
         // The picture is always centered
-        let start = &view_port_vertex - &Vertex::new(0.0, -width as f32 / 2.0 as f32);
-        let end = &view_port_vertex - &Vertex::new(0.0, width as f32 / 2.0 as f32);
+        let start = &view_port_vertex - &Vertex::new(0.0, -width as f32 / 2.0_f32);
+        let end = &view_port_vertex - &Vertex::new(0.0, width as f32 / 2.0_f32);
 
         let line = Line::new(&start, &end);
 
@@ -95,7 +95,7 @@ pub fn draw_map_objects(
             );
         }
 
-        let sector = get_sector_from_vertex(&map, &map_object.position);
+        let sector = get_sector_from_vertex(map, &map_object.position);
         if sector.is_none() {
             // Shouldn't happen, but let's not panic if it does.
             println!("Thing is outside map: {:?}", map_object);
@@ -110,7 +110,7 @@ pub fn draw_map_objects(
             sector.borrow().light_level
         };
 
-        let player_height = &player.floor_height + PLAYER_EYE_HEIGHT;
+        let player_height = player.floor_height + PLAYER_EYE_HEIGHT;
         let z = sector.borrow().floor_height;
         let mut bottom_height = z as f32 - player_height;
         let mut top_height = z as f32 + picture.bitmap.height as f32 - 1.0 - player_height;

@@ -43,21 +43,13 @@ pub fn clip_to_viewport(line: &Line) -> Option<ClippedLine> {
 
     // Determine if the wall intersects the viewport in front of us
     let left_intersected = if let Ok(left_intersection) = left_intersection.clone() {
-        if left_intersection.x >= 0.0 {
-            true
-        } else {
-            false
-        }
+        left_intersection.x >= 0.0
     } else {
         false
     };
 
     let right_intersected = if let Ok(right_intersection) = right_intersection.clone() {
-        if right_intersection.x >= 0.0 {
-            true
-        } else {
-            false
-        }
+        right_intersection.x >= 0.0
     } else {
         false
     };
@@ -116,7 +108,7 @@ pub fn clip_to_viewport(line: &Line) -> Option<ClippedLine> {
 
     let clipped_line = ClippedLine {
         line: Line::new(&start, &end),
-        start_offset: start_offset,
+        start_offset,
     };
 
     Some(clipped_line)
@@ -153,13 +145,13 @@ pub fn make_sidedef_non_vertical_line(line: &Line, height: f32) -> SdlLine {
     transformed_end.x *= ASPECT_RATIO_CORRECTION;
 
     let mut screen_start = Point::new(
-        ((CAMERA_FOCUS_X - &transformed_start.x) as i32).into(),
-        ((CAMERA_FOCUS_Y - &transformed_start.y) as i32).into(),
+        (CAMERA_FOCUS_X - transformed_start.x) as i32,
+        (CAMERA_FOCUS_Y - transformed_start.y) as i32,
     );
 
     let mut screen_end = Point::new(
-        ((CAMERA_FOCUS_X - &transformed_end.x) as i32).into(),
-        ((CAMERA_FOCUS_Y - &transformed_end.y) as i32).into(),
+        (CAMERA_FOCUS_X - transformed_end.x) as i32,
+        (CAMERA_FOCUS_Y - transformed_end.y) as i32,
     );
 
     screen_start.x = screen_start.x.min(SCREEN_WIDTH as i32 - 1);

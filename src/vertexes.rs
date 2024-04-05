@@ -12,7 +12,7 @@ pub struct Vertex {
 
 impl Vertex {
     pub fn new(x: f32, y: f32) -> Vertex {
-        Vertex { x: x, y: y }
+        Vertex { x, y }
     }
 
     pub fn rotate(&self, angle: f32) -> Vertex {
@@ -28,7 +28,7 @@ impl Vertex {
 
     // Are we left or of the line ?
     pub fn is_left_of_line(&self, line: &Line) -> bool {
-        (&(self - &line.start)).cross_product(&(&line.end - &line.start)) <= 0.0
+        (self - &line.start).cross_product(&(&line.end - &line.start)) <= 0.0
     }
 
     pub fn distance_to(&self, other: &Vertex) -> f32 {

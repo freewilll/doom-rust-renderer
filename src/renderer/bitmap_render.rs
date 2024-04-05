@@ -164,9 +164,9 @@ pub fn diminish_color(color: &Color, light_level: i16, distance: i16) -> Color {
     };
 
     Color::RGB(
-        (color.r as f32 * factor as f32) as u8,
-        (color.g as f32 * factor as f32) as u8,
-        (color.b as f32 * factor as f32) as u8,
+        (color.r as f32 * factor) as u8,
+        (color.g as f32 * factor) as u8,
+        (color.b as f32 * factor) as u8,
     )
 }
 
@@ -201,15 +201,14 @@ pub fn render_vertical_bitmap_line(
     let ax = (x - start_x) as f32 / (end_x - start_x) as f32;
     let mut tx = (((1.0 - ax) * (ux0 / uz0) + ax * (ux1 / uz1))
         / ((1.0 - ax) * (1.0 / uz0) + ax * (1.0 / uz1))) as i16;
-    tx = clipped_line.start_offset as i16 + offset_x + tx;
+    tx += clipped_line.start_offset as i16 + offset_x;
     if tx < 0 {
         tx += bitmap.width * (1 - tx / bitmap.width)
     }
-    tx = tx % bitmap.width;
+    tx %= bitmap.width;
 
     // z coordinate of column in world coordinates
-    let z = (((1.0 - ax) * (uz0 / uz0) + ax * (uz1 / uz1))
-        / ((1.0 - ax) * (1.0 / uz0) + ax * (1.0 / uz1))) as i16;
+    let z = (((1.0 - ax) + ax) / ((1.0 - ax) * (1.0 / uz0) + ax * (1.0 / uz1))) as i16;
 
     for y in clipped_top_y..clipped_bottom_y + 1 {
         // Calculate texture y
@@ -217,11 +216,11 @@ pub fn render_vertical_bitmap_line(
         let ay = (y - top_y) as f32 / (bottom_y - top_y) as f32;
         let mut ty = (bitmap.height as f32 + (1.0 - ay) * uy0 + ay * uy1) as i16;
 
-        ty = offset_y + ty;
+        ty += offset_y;
         if ty < 0 {
             ty += bitmap.height * (1 - ty / bitmap.height)
         }
-        ty = ty % bitmap.height;
+        ty %= bitmap.height;
 
         if let Some(color_value) = bitmap.pixels[ty as usize][tx as usize] {
             let color = palette.colors[color_value as usize];

@@ -120,14 +120,12 @@ impl Flat {
 
         let mut pixels: Vec<Vec<u8>> = Vec::with_capacity(FLAT_SIZE as usize);
         for _ in 0..FLAT_SIZE as usize {
-            let mut row = Vec::new();
-            row.resize(FLAT_SIZE as usize, 0u8);
-            pixels.push(row);
+            pixels.push(vec![0; FLAT_SIZE as usize]);
         }
 
-        for y in 0..FLAT_SIZE as usize {
-            for x in 0..FLAT_SIZE as usize {
-                pixels[y][x] = wad_file.file[offset + y * FLAT_SIZE as usize + x];
+        for (y, row) in pixels.iter_mut().enumerate().take(FLAT_SIZE as usize) {
+            for (x, col) in row.iter_mut().enumerate().take(FLAT_SIZE as usize) {
+                *col = wad_file.file[offset + y * FLAT_SIZE as usize + x];
             }
         }
 

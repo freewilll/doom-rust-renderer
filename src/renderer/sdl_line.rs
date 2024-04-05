@@ -9,8 +9,8 @@ pub struct SdlLine {
 impl SdlLine {
     pub fn new(start: &Point, end: &Point) -> SdlLine {
         SdlLine {
-            start: start.clone(),
-            end: end.clone(),
+            start: *start,
+            end: *end,
         }
     }
 }

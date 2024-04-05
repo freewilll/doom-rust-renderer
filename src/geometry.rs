@@ -78,7 +78,7 @@ impl Line {
         let px = invquot * ((x1 * y2 - y1 * x2) * (x3 - x4) - (x1 - x2) * (x3 * y4 - y3 * x4));
         let py = invquot * ((x1 * y2 - y1 * x2) * (y3 - y4) - (y1 - y2) * (x3 * y4 - y3 * x4));
 
-        return Ok(Vertex::new(px, py));
+        Ok(Vertex::new(px, py))
     }
 
     pub fn length(&self) -> f32 {
@@ -87,6 +87,6 @@ impl Line {
 
     // Is either the start or end point of our line on the left of another line?
     pub fn is_left_of_line(&self, other: &Line) -> bool {
-        self.start.is_left_of_line(&other) || self.end.is_left_of_line(&other)
+        self.start.is_left_of_line(other) || self.end.is_left_of_line(other)
     }
 }

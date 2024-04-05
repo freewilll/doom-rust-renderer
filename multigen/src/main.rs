@@ -34,6 +34,7 @@ fn write_sprites(output: &mut File, sprites: &Vec<String>) {
 #[repr(i16)]
 #[allow(non_camel_case_types, dead_code)]
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
+#[allow(clippy::upper_case_acronyms)]
 pub enum SpriteId {
 "#,
         )

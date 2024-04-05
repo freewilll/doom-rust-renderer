@@ -11,7 +11,7 @@ pub const ASPECT_RATIO_CORRECTION: f32 = 200.0 / 240.0;
 // is everything being shown on the screen as it would have on the original
 // VGA screens.
 pub const GAME_SCREEN_WIDTH: f32 = SCREEN_WIDTH as f32 / ASPECT_RATIO_CORRECTION;
-pub const GAME_CAMERA_FOCUS_X: f32 = GAME_SCREEN_WIDTH as f32 / 2.0 as f32;
+pub const GAME_CAMERA_FOCUS_X: f32 = GAME_SCREEN_WIDTH / 2.0_f32;
 
 pub const CAMERA_FOCUS_X: f32 = SCREEN_WIDTH as f32 / 2.0;
 pub const CAMERA_FOCUS_Y: f32 = SCREEN_HEIGHT as f32 / 2.0;

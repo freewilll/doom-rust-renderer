@@ -64,7 +64,7 @@ impl Clock {
             ticks: 0,
             index: 0,
             rolling_sum: 0.0,
-            list: list,
+            list,
         }
     }
 
@@ -83,7 +83,7 @@ impl Clock {
     }
 
     fn get_avg_ticks(&mut self) -> f32 {
-        self.rolling_sum as f32 / AVG_TICKS_MAXSAMPLES as f32
+        self.rolling_sum / AVG_TICKS_MAXSAMPLES as f32
     }
 
     fn get_fps(&mut self) -> f32 {
@@ -218,8 +218,8 @@ impl Game {
     }
 
     pub fn transform_vertex_to_point_for_map(&self, v: &Vertex) -> Point {
-        let x_size: f32 = (self.map.bounding_box.right - self.map.bounding_box.left).into();
-        let y_size: f32 = (self.map.bounding_box.bottom - self.map.bounding_box.top).into();
+        let x_size: f32 = self.map.bounding_box.right - self.map.bounding_box.left;
+        let y_size: f32 = self.map.bounding_box.bottom - self.map.bounding_box.top;
 
         let screen_width: f32 = (SCREEN_WIDTH - MAP_BORDER * 2) as f32;
         let screen_height: f32 = (SCREEN_HEIGHT - MAP_BORDER * 2) as f32;
@@ -229,7 +229,7 @@ impl Game {
         let y = (map_border + screen_height
             - 1.0
             - (v.y - self.map.bounding_box.top) * screen_height / y_size) as i32;
-        Point::new(x.into(), y.into())
+        Point::new(x, y)
     }
 
     #[allow(dead_code)]
@@ -261,7 +261,7 @@ impl Game {
             let dx = node.dx;
             let dy = node.dy;
 
-            let start_vertex = Vertex { x: x, y: y };
+            let start_vertex = Vertex { x, y };
             let end_vertex = Vertex {
                 x: x + dx,
                 y: y + dy,
@@ -284,7 +284,7 @@ impl Game {
         let start_vertex = &self.player.position;
         let start_delta = Vertex::new(length, 0.0).rotate(self.player.angle);
         let end_vertex = start_vertex + &start_delta;
-        let start_point = self.transform_vertex_to_point_for_map(&start_vertex);
+        let start_point = self.transform_vertex_to_point_for_map(start_vertex);
         let end_point = self.transform_vertex_to_point_for_map(&end_vertex);
 
         self.canvas.draw_line(start_point, end_point).unwrap();
@@ -436,7 +436,7 @@ impl Game {
             }
         }
 
-        return false;
+        false
     }
 
     fn tick_thinkers(&mut self) {
@@ -498,7 +498,7 @@ impl Game {
                 &mut self.sprites,
                 Rc::clone(&self.sky_texture),
                 &mut self.flats,
-                &mut self.palette,
+                &self.palette,
                 &self.player,
                 self.clock.timestamp,
             )

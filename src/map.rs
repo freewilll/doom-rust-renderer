@@ -46,16 +46,16 @@ impl Map {
         }
 
         Map {
-            things: things,
-            vertexes: vertexes,
-            linedefs: linedefs,
-            sidedefs: sidedefs,
-            segs: segs,
-            subsectors: subsectors,
-            nodes: nodes,
-            sectors: sectors,
-            root_node: root_node,
-            bounding_box: bounding_box,
+            things,
+            vertexes,
+            linedefs,
+            sidedefs,
+            segs,
+            subsectors,
+            nodes,
+            sectors,
+            root_node,
+            bounding_box,
         }
     }
 }

@@ -14,7 +14,7 @@ pub enum NodeChild {
 
 impl NodeChild {
     // Create a NodeChild which is either a node or subsector from an index in the WAD file
-    fn from_index(index: i16, nodes: &Vec<Rc<Node>>, subsectors: &Vec<Rc<SubSector>>) -> NodeChild {
+    fn from_index(index: i16, nodes: &[Rc<Node>], subsectors: &[Rc<SubSector>]) -> NodeChild {
         let is_subsector = index & NODE_IS_SUBSECTOR == NODE_IS_SUBSECTOR;
         let stripped_index = (index & !NODE_IS_SUBSECTOR) as usize;
 
@@ -43,7 +43,7 @@ pub struct Node {
 // the node tree can be built in one pass. The last node is the root node.
 pub fn load_nodes(
     wad_file: &WadFile,
-    subsectors: &Vec<Rc<SubSector>>,
+    subsectors: &[Rc<SubSector>],
     map_name: &str,
 ) -> Vec<Rc<Node>> {
     let dir_entry = wad_file.get_dir_entry_for_map_lump(map_name, MapLumpName::Nodes);
@@ -54,7 +54,7 @@ pub fn load_nodes(
         let offset = dir_entry.offset as usize + i * 28;
 
         let node = Node {
-            x: wad_file.read_f32_from_i16(offset + 0),
+            x: wad_file.read_f32_from_i16(offset),
             y: wad_file.read_f32_from_i16(offset + 2),
             dx: wad_file.read_f32_from_i16(offset + 4),
             dy: wad_file.read_f32_from_i16(offset + 6),
@@ -72,8 +72,8 @@ pub fn load_nodes(
                 right: wad_file.read_f32_from_i16(offset + 22),
             },
 
-            right_child: NodeChild::from_index(wad_file.read_i16(offset + 24), &nodes, &subsectors),
-            left_child: NodeChild::from_index(wad_file.read_i16(offset + 26), &nodes, &subsectors),
+            right_child: NodeChild::from_index(wad_file.read_i16(offset + 24), &nodes, subsectors),
+            left_child: NodeChild::from_index(wad_file.read_i16(offset + 26), &nodes, subsectors),
         };
         nodes.push(Rc::new(node));
     }
