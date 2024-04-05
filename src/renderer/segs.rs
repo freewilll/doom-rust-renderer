@@ -5,7 +5,7 @@ use crate::flats::{Flat, Flats};
 use crate::game::Player;
 use crate::game::{SCREEN_HEIGHT, SCREEN_WIDTH};
 use crate::geometry::Line;
-use crate::linedefs::Flags;
+use crate::linedefs::Flags as LinedefFlags;
 use crate::palette::Palette;
 use crate::segs::Seg;
 use crate::sidedefs::Sidedef;
@@ -40,6 +40,43 @@ pub struct Segs<'a> {
     hor_ocl: [bool; SCREEN_WIDTH as usize], // Horizontal occlusions
     floor_ver_ocl: [i16; SCREEN_WIDTH as usize], // Vertical occlusions for the floor
     ceiling_ver_ocl: [i16; SCREEN_WIDTH as usize], // Vertical occlusions for the ceiling
+}
+
+struct SideDefDetails<'a> {
+    clipped_line: &'a ClippedLine, // The clipped line in viewport coords
+    sidedef: &'a Rc<Sidedef>,      // The sidedef
+    offset_x: i16,                 // Distance along linedef to start of seg
+    floor_height: i16,             // Height of the floor
+    ceiling_height: i16,           // Height of the ceiling
+    floor_flat: &'a Rc<Flat>,      // Floor texture
+    ceiling_flat: &'a Rc<Flat>,    // Ceiling texture
+    light_level: i16,              // Sector light level
+}
+
+struct Flags {
+    only_occlusions: bool,          // Don't draw, only add visplanes + occlusions
+    is_lower_wall: bool,            // For portals: the rendered piece of wall
+    is_upper_wall: bool,            // For portals: the rendered piece of wall
+    draw_ceiling: bool,             // Set to false in a special case for sky texture
+    is_two_sided_middle_wall: bool, // Two sided middle texture, add to list to draw later, don't add occlusions
+}
+
+impl Flags {
+    pub fn new(
+        only_occlusions: bool,
+        is_lower_wall: bool,
+        is_upper_wall: bool,
+        draw_ceiling: bool,
+        is_two_sided_middle_wall: bool,
+    ) -> Flags {
+        Flags {
+            only_occlusions,
+            is_lower_wall,
+            is_upper_wall,
+            draw_ceiling,
+            is_two_sided_middle_wall,
+        }
+    }
 }
 
 impl Segs<'_> {
@@ -86,26 +123,15 @@ impl Segs<'_> {
     // This may involve drawing it, but might also involve processing occlusions and visplanes.
     fn process_sidedef(
         &mut self,
-        clipped_line: &ClippedLine, // The clipped line in viewport coords
-        sidedef: Rc<Sidedef>,       // The sidedef
-        bottom_height: f32,         // Height of the bottom of the clipped line in viewport coords
-        top_height: f32,            // Height of the top of the clipped line in viewport coords
-        seg_offset: i16,            // Distance along linedef to start of seg
-        offset_y: i32,              // Texture offset in viewport coords
-        texture_name: &str,         // Optional texture
-        light_level: i16,           // Sector light level
-        floor_flat: &Rc<Flat>,      // Floor texture
-        ceiling_flat: &Rc<Flat>,    // Ceiling texture
-        floor_height: i16,          // Height of the floor
-        ceiling_height: i16,        // Height of the ceiling
-        only_occlusions: bool,      // Don't draw, only add visplanes + occlusions
-        is_lower_wall: bool,        // For portals: the rendered piece of wall
-        is_upper_wall: bool,        // For portals: the rendered piece of wall
-        draw_ceiling: bool,         // Set to false in a special case for sky texture
-        is_two_sided_middle_wall: bool, // Two sided middle texture, add to list to draw later, don't add occlusions
+        sds: &SideDefDetails, // Common details
+        bottom_height: f32,   // Height of the bottom of the clipped line in viewport coords
+        top_height: f32,      // Height of the top of the clipped line in viewport coords
+        offset_y: i32,        // Texture offset in viewport coords
+        texture_name: &str,   // Optional texture
+        flags: Flags,         // Specific details
     ) {
-        let bottom = make_sidedef_non_vertical_line(&clipped_line.line, bottom_height);
-        let top = make_sidedef_non_vertical_line(&clipped_line.line, top_height);
+        let bottom = make_sidedef_non_vertical_line(&sds.clipped_line.line, bottom_height);
+        let top = make_sidedef_non_vertical_line(&sds.clipped_line.line, top_height);
 
         let texture = if texture_name != "-" {
             Some(self.textures.get(texture_name))
@@ -138,17 +164,18 @@ impl Segs<'_> {
             (top.start.y as f32 - top.end.y as f32) / (top.start.x as f32 - top.end.x as f32);
 
         let mut sidedef_visplanes = SidedefVisPlanes::new(
-            light_level,
-            floor_flat,
-            ceiling_flat,
-            floor_height,
-            ceiling_height,
+            sds.light_level,
+            sds.floor_flat,
+            sds.ceiling_flat,
+            sds.floor_height,
+            sds.ceiling_height,
         );
 
         // Does the wall from from floor to ceiling?
-        let is_full_height_wall = !is_lower_wall && !is_upper_wall && !only_occlusions;
+        let is_full_height_wall =
+            !flags.is_lower_wall && !flags.is_upper_wall && !flags.only_occlusions;
 
-        let bitmap_render_state = if is_two_sided_middle_wall {
+        let bitmap_render_state = if flags.is_two_sided_middle_wall {
             BitmapRenderState::TwoSidedSeg
         } else {
             BitmapRenderState::SolidSeg
@@ -161,17 +188,17 @@ impl Segs<'_> {
         let mut bitmap_render = BitmapRender::new(
             bitmap_render_state,
             bitmap,
-            light_level,
-            clipped_line.clone(),
+            sds.light_level,
+            sds.clipped_line.clone(),
             bottom.start.x,
             bottom.end.x,
             bottom_height,
             top_height,
-            sidedef.x_offset as i16 + seg_offset,
-            sidedef.y_offset as i16 + offset_y as i16,
-            is_lower_wall || (!is_two_sided_middle_wall && is_full_height_wall),
-            is_upper_wall || (!is_two_sided_middle_wall && is_full_height_wall),
-            draw_ceiling,
+            sds.sidedef.x_offset as i16 + sds.offset_x,
+            sds.sidedef.y_offset as i16 + offset_y as i16,
+            flags.is_lower_wall || (!flags.is_two_sided_middle_wall && is_full_height_wall),
+            flags.is_upper_wall || (!flags.is_two_sided_middle_wall && is_full_height_wall),
+            flags.draw_ceiling,
         );
 
         for x in bottom.start.x as i16..bottom.end.x as i16 + 1 {
@@ -204,21 +231,21 @@ impl Segs<'_> {
                 // Draw the vertical line unless it's transparent
                 // The middle wall isn't rendered, it's only used to create visplanes.
                 if in_ver_clipped_area {
-                    if !is_two_sided_middle_wall && !only_occlusions {
+                    if !flags.is_two_sided_middle_wall && !flags.only_occlusions {
                         if let Some(texture) = &texture {
                             render_vertical_bitmap_line(
                                 // Wall/portal details
                                 self.pixels,
                                 self.palette,
                                 &texture.bitmap,
-                                light_level,
-                                clipped_line,
+                                sds.light_level,
+                                sds.clipped_line,
                                 bottom.start.x,
                                 bottom.end.x,
                                 bottom_height,
                                 top_height,
-                                sidedef.x_offset as i16 + seg_offset,
-                                sidedef.y_offset as i16 + offset_y as i16,
+                                sds.sidedef.x_offset as i16 + sds.offset_x,
+                                sds.sidedef.y_offset as i16 + offset_y as i16,
                                 // Column details
                                 x.into(),
                                 clipped_top_y.into(),
@@ -232,9 +259,9 @@ impl Segs<'_> {
                     bitmap_render.add_column(x, clipped_top_y, clipped_bottom_y, bottom_y, top_y);
                 }
 
-                if !is_two_sided_middle_wall
+                if !flags.is_two_sided_middle_wall
                     && in_ver_clipped_area
-                    && (is_full_height_wall || only_occlusions)
+                    && (is_full_height_wall || flags.only_occlusions)
                 {
                     let mut visplane_added = false;
 
@@ -247,12 +274,12 @@ impl Segs<'_> {
                     }
 
                     // Process top visplane
-                    if !is_two_sided_middle_wall
-                        && draw_ceiling
+                    if !flags.is_two_sided_middle_wall
+                        && flags.draw_ceiling
                         && clipped_top_y > ceiling_ver_ocl
                         && clipped_top_y != -1
                     {
-                        if draw_ceiling {
+                        if flags.draw_ceiling {
                             sidedef_visplanes.add_top_point(x, ceiling_ver_ocl, clipped_top_y);
                         }
                         visplane_added = true;
@@ -262,9 +289,9 @@ impl Segs<'_> {
                         // Line is occluded, flush visplanes
                         sidedef_visplanes.flush(&mut self.visplanes);
                     }
-                } else if !is_two_sided_middle_wall
+                } else if !flags.is_two_sided_middle_wall
                     && !in_ver_clipped_area
-                    && (is_full_height_wall || only_occlusions)
+                    && (is_full_height_wall || flags.only_occlusions)
                     && floor_ver_ocl > ceiling_ver_ocl
                 {
                     // The sidedef is occluded. However, there is still is a vertical
@@ -279,8 +306,8 @@ impl Segs<'_> {
                         self.occlude_vertical_line(x);
                     }
 
-                    if draw_ceiling && top_y >= floor_ver_ocl {
-                        if draw_ceiling {
+                    if flags.draw_ceiling && top_y >= floor_ver_ocl {
+                        if flags.draw_ceiling {
                             sidedef_visplanes.add_top_point(x, ceiling_ver_ocl, floor_ver_ocl);
                         }
 
@@ -289,20 +316,20 @@ impl Segs<'_> {
                     }
                 }
 
-                if !is_two_sided_middle_wall && in_ver_clipped_area && only_occlusions {
+                if !flags.is_two_sided_middle_wall && in_ver_clipped_area && flags.only_occlusions {
                     self.floor_ver_ocl[x as usize] = clipped_bottom_y;
 
-                    if draw_ceiling {
+                    if flags.draw_ceiling {
                         self.ceiling_ver_ocl[x as usize] = clipped_top_y;
                     }
                 }
 
                 // Update vertical occlusions
-                if !is_two_sided_middle_wall && in_ver_clipped_area && is_lower_wall {
+                if !flags.is_two_sided_middle_wall && in_ver_clipped_area && flags.is_lower_wall {
                     self.floor_ver_ocl[x as usize] = clipped_top_y;
                 }
 
-                if !is_two_sided_middle_wall && in_ver_clipped_area && is_upper_wall {
+                if !flags.is_two_sided_middle_wall && in_ver_clipped_area && flags.is_upper_wall {
                     self.ceiling_ver_ocl[x as usize] = clipped_bottom_y;
                 }
             } else {
@@ -310,7 +337,7 @@ impl Segs<'_> {
                 sidedef_visplanes.flush(&mut self.visplanes);
             }
 
-            if !is_two_sided_middle_wall && is_full_height_wall {
+            if !flags.is_two_sided_middle_wall && is_full_height_wall {
                 // A vertical line occludes everything behind it
                 self.occlude_vertical_line(x);
             }
@@ -373,9 +400,9 @@ impl Segs<'_> {
             None => (None, None),
         };
 
-        let is_two_sided = linedef.flags & Flags::TWOSIDED != 0;
-        let top_is_unpegged = linedef.flags & Flags::DONTPEGTOP != 0;
-        let bottom_is_unpegged = linedef.flags & Flags::DONTPEGBOTTOM != 0;
+        let is_two_sided = linedef.flags & LinedefFlags::TWOSIDED != 0;
+        let top_is_unpegged = linedef.flags & LinedefFlags::DONTPEGTOP != 0;
+        let bottom_is_unpegged = linedef.flags & LinedefFlags::DONTPEGBOTTOM != 0;
 
         // Transform the seg so that the player position and angle is transformed
         // away.
@@ -446,6 +473,17 @@ impl Segs<'_> {
             }
         }
 
+        let sidedef_render_details = SideDefDetails {
+            clipped_line: &clipped_line,
+            sidedef: front_sidedef,
+            offset_x: seg.offset,
+            floor_height: front_sector.floor_height,
+            ceiling_height: front_sector.ceiling_height,
+            floor_flat: &floor_flat,
+            ceiling_flat: &ceiling_flat,
+            light_level: front_sector.light_level,
+        };
+
         // All the transformations are done and the wall/portal is facing us.
         // Call the sidedef processor with the three parts of the wall/portal.
         // https://doomwiki.org/wiki/Texture_alignment
@@ -456,52 +494,31 @@ impl Segs<'_> {
                 // Setting bottom_is_unpegged makes the texture located at the floor
                 (floor_height - ceiling_height) as i32
             } else {
-                // Default to the texture being locatd at the top
+                // Default to the texture being located at the top
                 0
             };
+            // Flags{false,false,draw_ceiling,false},
 
             // Draw the solid wall texture
             self.process_sidedef(
-                &clipped_line,
-                Rc::clone(front_sidedef),
+                &sidedef_render_details,
                 floor_height - player_height,
                 ceiling_height - player_height,
-                seg.offset,
                 offset_y,
                 &front_sidedef.middle_texture,
-                front_sector.light_level,
-                &floor_flat,
-                &ceiling_flat,
-                front_sector.floor_height,
-                front_sector.ceiling_height,
-                false,
-                false,
-                false,
-                draw_ceiling,
-                false,
+                Flags::new(false, false, false, draw_ceiling, false),
             );
         } else {
             // Process a portal
 
             // Process the portal's full height, only occlusions + visplanes are added
             self.process_sidedef(
-                &clipped_line,
-                Rc::clone(front_sidedef),
+                &sidedef_render_details,
                 floor_height - player_height,
                 ceiling_height - player_height,
-                seg.offset,
                 0,
                 &front_sidedef.middle_texture,
-                front_sector.light_level,
-                &floor_flat,
-                &ceiling_flat,
-                front_sector.floor_height,
-                front_sector.ceiling_height,
-                true, // Only add occlusions/visplanes
-                false,
-                false,
-                draw_ceiling,
-                false,
+                Flags::new(true, false, false, draw_ceiling, false),
             );
 
             // Process the middle bit, adding it to the list of two sided
@@ -519,23 +536,12 @@ impl Segs<'_> {
             }
 
             self.process_sidedef(
-                &clipped_line,
-                Rc::clone(front_sidedef),
+                &sidedef_render_details,
                 mid_texture_floor_height - player_height,
                 mid_texture_ceiling_height - player_height,
-                seg.offset,
                 0,
                 &front_sidedef.middle_texture,
-                front_sector.light_level,
-                &floor_flat,
-                &ceiling_flat,
-                front_sector.floor_height,
-                front_sector.ceiling_height,
-                false,
-                false,
-                false,
-                draw_ceiling,
-                true, // is_two_sided_middle_wall
+                Flags::new(false, false, false, draw_ceiling, true),
             );
 
             // Process the lower texture
@@ -549,23 +555,12 @@ impl Segs<'_> {
                 };
 
                 self.process_sidedef(
-                    &clipped_line,
-                    Rc::clone(front_sidedef),
+                    &sidedef_render_details,
                     floor_height - player_height,
                     portal_bottom_height - player_height,
-                    seg.offset,
                     offset_y,
                     &front_sidedef.lower_texture,
-                    front_sector.light_level,
-                    &floor_flat,
-                    &ceiling_flat,
-                    front_sector.floor_height,
-                    front_sector.ceiling_height,
-                    false,
-                    true,
-                    false,
-                    draw_ceiling,
-                    false,
+                    Flags::new(false, true, false, draw_ceiling, false),
                 );
             }
 
@@ -580,23 +575,12 @@ impl Segs<'_> {
                 };
 
                 self.process_sidedef(
-                    &clipped_line,
-                    Rc::clone(front_sidedef),
+                    &sidedef_render_details,
                     portal_top_height - player_height,
                     ceiling_height - player_height,
-                    seg.offset,
                     offset_y,
                     &front_sidedef.upper_texture,
-                    front_sector.light_level,
-                    &floor_flat,
-                    &ceiling_flat,
-                    front_sector.floor_height,
-                    front_sector.ceiling_height,
-                    false,
-                    false,
-                    true,
-                    draw_ceiling,
-                    false,
+                    Flags::new(false, false, true, draw_ceiling, false),
                 );
             }
         }
