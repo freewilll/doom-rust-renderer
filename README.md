@@ -3,6 +3,8 @@
 The purpose of this project was to learn rust by doing something fun like implementing the doom renderer. Although there are many ways a doom level can be rendered, the focus has been on doing it the doom way.
 
 ![screenshot](screenshot1.png)
+![screenshot](screenshot2.png)
+![screenshot](screenshot3.png)
 
 # How to run it
 
