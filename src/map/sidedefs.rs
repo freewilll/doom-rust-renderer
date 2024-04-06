@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::sectors::Sector;
+use crate::map::Sector;
 use crate::wad::{MapLumpName, WadFile};
 
 #[allow(dead_code)]

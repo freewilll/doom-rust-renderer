@@ -9,9 +9,9 @@ use super::constants::{
 use super::pixels::Pixels;
 use crate::flats::{Flat, FLAT_SIZE};
 use crate::game::{Player, SCREEN_HEIGHT, SCREEN_WIDTH};
+use crate::map::Vertex;
 use crate::palette::Palette;
 use crate::textures::Texture;
-use crate::vertexes::Vertex;
 
 #[derive(Debug, Clone)]
 pub struct Visplane {

@@ -1,7 +1,7 @@
-use crate::sidedefs::Sidedef;
-use crate::vertexes::Vertex;
-use crate::wad::{MapLumpName, WadFile};
 use std::rc::Rc;
+
+use crate::map::{Sidedef, Vertex};
+use crate::wad::{MapLumpName, WadFile};
 
 pub struct Flags;
 

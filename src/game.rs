@@ -17,17 +17,14 @@ use std::rc::Rc;
 use std::time::Instant;
 
 use crate::flats::Flats;
-use crate::linedefs::Flags;
-use crate::map::Map;
+use crate::map::{get_thing_by_type, Flags, Map, ThingTypes, Vertex};
 use crate::map_objects::{explode_everything, kill_everything, respawn_everything, MapObjects};
 use crate::palette::Palette;
 use crate::pictures::Pictures;
 use crate::renderer::{get_sector_from_vertex, Pixels, Renderer};
 use crate::sprites::Sprites;
 use crate::textures::{Texture, Textures};
-use crate::things::{get_thing_by_type, ThingTypes};
 use crate::thinkers::{init_thinkers, Thinker};
-use crate::vertexes::Vertex;
 use crate::wad::WadFile;
 
 const TITLE: &str = "A doom renderer in Rust";

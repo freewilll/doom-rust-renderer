@@ -2,7 +2,7 @@ use sdl2::rect::Point;
 
 use crate::game::SCREEN_WIDTH;
 use crate::geometry::Line;
-use crate::vertexes::Vertex;
+use crate::map::Vertex;
 
 use super::clipped_line::ClippedLine;
 use super::constants::{

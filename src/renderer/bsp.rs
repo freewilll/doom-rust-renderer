@@ -2,10 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::geometry::Line;
-use crate::map::Map;
-use crate::nodes::NodeChild;
-use crate::sectors::Sector;
-use crate::vertexes::Vertex;
+use crate::map::{Map, NodeChild, Sector, Vertex};
 
 // Walk the BSP tree to find the sector the vertex is in
 // Returns None if the vertex is outside of the map.

@@ -1,5 +1,4 @@
-use crate::linedefs::Linedef;
-use crate::vertexes::Vertex;
+use crate::map::{Linedef, Vertex};
 use crate::wad::{MapLumpName, WadFile};
 use std::rc::Rc;
 

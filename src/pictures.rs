@@ -5,8 +5,8 @@ use std::rc::Rc;
 use std::{fmt, str};
 
 use crate::bitmap::Bitmap;
+use crate::map::Vertex;
 use crate::palette::Palette;
-use crate::vertexes::Vertex;
 use crate::wad::WadFile;
 
 // Lazy loaded hashmap of pictures

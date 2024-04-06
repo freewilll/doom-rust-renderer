@@ -1,4 +1,4 @@
-use crate::segs::Seg;
+use crate::map::Seg;
 use crate::wad::{MapLumpName, WadFile};
 use std::rc::Rc;
 

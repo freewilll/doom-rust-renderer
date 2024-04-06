@@ -1,16 +1,33 @@
+mod linedefs;
+mod nodes;
+mod sectors;
+mod segs;
+mod sidedefs;
+mod subsectors;
+mod things;
+mod vertexes;
+
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::geometry::BoundingBox;
-use crate::linedefs::{load_linedefs, Linedef};
-use crate::nodes::{load_nodes, Node};
-use crate::sectors::{load_sectors, Sector};
-use crate::segs::{load_segs, Seg};
-use crate::sidedefs::{load_sidedefs, Sidedef};
-use crate::subsectors::{load_subsectors, SubSector};
-use crate::things::{load_things, Thing};
-use crate::vertexes::{load_vertexes, Vertex};
-use crate::wad::WadFile;
+use crate::map::{
+    linedefs::load_linedefs, nodes::load_nodes, sectors::load_sectors, segs::load_segs,
+    sidedefs::load_sidedefs, subsectors::load_subsectors, things::load_things,
+    vertexes::load_vertexes,
+};
+
+pub use crate::geometry::BoundingBox;
+pub use crate::map::{
+    linedefs::{Flags, Linedef},
+    nodes::{Node, NodeChild},
+    sectors::Sector,
+    segs::Seg,
+    sidedefs::Sidedef,
+    subsectors::SubSector,
+    things::{get_thing_by_type, Thing, ThingTypes},
+    vertexes::Vertex,
+};
+pub use crate::wad::WadFile;
 
 #[allow(dead_code)]
 pub struct Map {

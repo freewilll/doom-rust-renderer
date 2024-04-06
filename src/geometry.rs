@@ -1,4 +1,4 @@
-use crate::vertexes::Vertex;
+use crate::map::Vertex;
 
 #[derive(Debug)]
 pub struct BoundingBox {

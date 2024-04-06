@@ -3,10 +3,8 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::info::{MapObjectInfo, State, StateId, MAP_OBJECT_INFOS, STATES};
-use crate::map::Map;
-use crate::things::ThingTypes;
+use crate::map::{Map, ThingTypes, Vertex};
 use crate::thinkers::Thinker;
-use crate::vertexes::Vertex;
 
 #[allow(dead_code)]
 #[derive(Debug)]

@@ -7,14 +7,14 @@ use super::bsp::get_sector_from_vertex;
 use super::constants::PLAYER_EYE_HEIGHT;
 use super::misc::{clip_to_viewport, make_sidedef_non_vertical_line};
 use super::pixels::Pixels;
+
 use crate::game::{Player, SCREEN_HEIGHT, SCREEN_WIDTH};
 use crate::geometry::Line;
 use crate::info::StateId;
-use crate::map::Map;
+use crate::map::{Map, Vertex};
 use crate::map_objects::MapObjects;
 use crate::palette::Palette;
 use crate::sprites::Sprites;
-use crate::vertexes::Vertex;
 
 // Draw map objects (aka things)
 pub fn draw_map_objects(

@@ -15,14 +15,11 @@ use std::rc::Rc;
 use crate::flats::Flats;
 use crate::game::Player;
 use crate::geometry::Line;
-use crate::map::Map;
+use crate::map::{Map, Node, NodeChild, SubSector, Vertex};
 use crate::map_objects::MapObjects;
-use crate::nodes::{Node, NodeChild};
 use crate::palette::Palette;
 use crate::sprites::Sprites;
-use crate::subsectors::SubSector;
 use crate::textures::{Texture, Textures};
-use crate::vertexes::Vertex;
 
 pub use bsp::get_sector_from_vertex;
 use map_objects::draw_map_objects;

@@ -3,8 +3,7 @@ use rand::Rng;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::map::Map;
-use crate::sectors::Sector;
+use crate::map::{Map, Sector};
 use crate::thinkers::Thinker;
 
 pub const SLOW_DARK: i16 = 35;

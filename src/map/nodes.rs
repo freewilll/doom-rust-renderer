@@ -1,5 +1,5 @@
 use crate::geometry::BoundingBox;
-use crate::subsectors::SubSector;
+use crate::map::SubSector;
 use crate::wad::{MapLumpName, WadFile};
 use std::rc::Rc;
 
