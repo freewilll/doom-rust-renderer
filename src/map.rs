@@ -12,6 +12,7 @@ use crate::things::{load_things, Thing};
 use crate::vertexes::{load_vertexes, Vertex};
 use crate::wad::WadFile;
 
+#[allow(dead_code)]
 pub struct Map {
     pub things: Vec<Rc<Thing>>,            // Monsters, weapons, keys, etc
     pub vertexes: Vec<Rc<Vertex>>,         // Vertexes that make up the lines

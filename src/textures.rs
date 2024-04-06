@@ -14,6 +14,7 @@ use crate::wad::{DirEntry, WadFile};
 // and the pixels 2-D vec is created from it.
 
 // Names of wall patches + offsets into the WAD file
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct Pname {
     pub name: String,            // Lump name
@@ -21,6 +22,7 @@ pub struct Pname {
 }
 
 // Patch is a lazy loaded picture + offset within the texture
+#[allow(dead_code)]
 struct Patch {
     origin_x: i16,                // The horizontal offset relative to the upper-left
     origin_y: i16,                // The vertical offset relative to the upper-left
@@ -39,6 +41,7 @@ pub struct TextureDefinition {
 }
 
 // A Texture is a loaded texture, with its pixels populated from the patches
+#[allow(dead_code)]
 pub struct Texture {
     pub name: String,
     pub bitmap: Rc<Bitmap>,

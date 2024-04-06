@@ -8,6 +8,7 @@ use crate::things::ThingTypes;
 use crate::thinkers::Thinker;
 use crate::vertexes::Vertex;
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct MapObject {
     pub info: MapObjectInfo,
@@ -70,10 +71,7 @@ impl MapObjectThinker {
     pub fn new(map_object: Rc<RefCell<MapObject>>) -> MapObjectThinker {
         let count = map_object.borrow().state.tics;
 
-        MapObjectThinker {
-            map_object,
-            count,
-        }
+        MapObjectThinker { map_object, count }
     }
 
     fn move_to_state(&mut self, state: StateId) {

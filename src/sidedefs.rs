@@ -4,6 +4,7 @@ use std::rc::Rc;
 use crate::sectors::Sector;
 use crate::wad::{MapLumpName, WadFile};
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct Sidedef {
     pub id: i16,

@@ -3,6 +3,7 @@ use crate::vertexes::Vertex;
 use crate::wad::{MapLumpName, WadFile};
 use std::rc::Rc;
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct Seg {
     pub id: i16,

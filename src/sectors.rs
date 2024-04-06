@@ -3,6 +3,7 @@ use std::rc::Rc;
 
 use crate::wad::{MapLumpName, WadFile};
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct Sector {
     pub id: i16,

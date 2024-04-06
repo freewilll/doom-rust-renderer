@@ -18,6 +18,7 @@ impl Flags {
     pub const MAPPED: i16 = 256; // Set if already seen, thus drawn in automap.
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct Linedef {
     pub id: i16,
