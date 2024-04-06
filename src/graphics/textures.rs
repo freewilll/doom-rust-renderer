@@ -3,9 +3,8 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::{fmt, str};
 
-use crate::bitmap::Bitmap;
 use crate::game::Game;
-use crate::pictures::Picture;
+use crate::graphics::{Bitmap, Picture};
 use crate::wad::{DirEntry, WadFile};
 
 // A texture consists of a list of patches. Each patch has an origin (x,y) and refers to

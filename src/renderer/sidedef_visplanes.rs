@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use super::visplanes::Visplane;
-use crate::flats::Flat;
+use crate::graphics::Flat;
 
 // Keep track of the visplane state while processing a sidedef
 pub struct SidedefVisPlanes {

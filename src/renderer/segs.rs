@@ -1,12 +1,10 @@
 use std::cmp::{max, min};
 use std::rc::Rc;
 
-use crate::flats::{Flat, Flats};
 use crate::game::{Player, SCREEN_HEIGHT, SCREEN_WIDTH};
 use crate::geometry::Line;
+use crate::graphics::{Flat, Flats, Palette, Textures};
 use crate::map::{Flags as LinedefFlags, Seg, Sidedef};
-use crate::palette::Palette;
-use crate::textures::Textures;
 
 use super::bitmap_render::{render_vertical_bitmap_line, BitmapRender, BitmapRenderState};
 use super::clipped_line::ClippedLine;

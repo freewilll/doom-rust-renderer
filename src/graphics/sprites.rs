@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use crate::graphics::{Picture, Pictures};
 use crate::info::{SpriteId, SPRITES};
-use crate::pictures::{Picture, Pictures};
 use crate::wad::WadFile;
 
 pub struct Sprites {

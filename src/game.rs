@@ -16,14 +16,10 @@ use std::f32::consts::PI;
 use std::rc::Rc;
 use std::time::Instant;
 
-use crate::flats::Flats;
+use crate::graphics::{Flats, Palette, Pictures, Sprites, Texture, Textures};
 use crate::map::{get_thing_by_type, Flags, Map, ThingTypes, Vertex};
 use crate::map_objects::{explode_everything, kill_everything, respawn_everything, MapObjects};
-use crate::palette::Palette;
-use crate::pictures::Pictures;
 use crate::renderer::{get_sector_from_vertex, Pixels, Renderer};
-use crate::sprites::Sprites;
-use crate::textures::{Texture, Textures};
 use crate::thinkers::{init_thinkers, Thinker};
 use crate::wad::WadFile;
 

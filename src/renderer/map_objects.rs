@@ -10,11 +10,10 @@ use super::pixels::Pixels;
 
 use crate::game::{Player, SCREEN_HEIGHT, SCREEN_WIDTH};
 use crate::geometry::Line;
+use crate::graphics::{Palette, Sprites};
 use crate::info::StateId;
 use crate::map::{Map, Vertex};
 use crate::map_objects::MapObjects;
-use crate::palette::Palette;
-use crate::sprites::Sprites;
 
 // Draw map objects (aka things)
 pub fn draw_map_objects(

@@ -7,11 +7,9 @@ use super::constants::{
     ASPECT_RATIO_CORRECTION, CAMERA_FOCUS_X, CAMERA_FOCUS_Y, GAME_CAMERA_FOCUS_X, PLAYER_EYE_HEIGHT,
 };
 use super::pixels::Pixels;
-use crate::flats::{Flat, FLAT_SIZE};
 use crate::game::{Player, SCREEN_HEIGHT, SCREEN_WIDTH};
+use crate::graphics::{Flat, Palette, Texture, FLAT_SIZE};
 use crate::map::Vertex;
-use crate::palette::Palette;
-use crate::textures::Texture;
 
 #[derive(Debug, Clone)]
 pub struct Visplane {

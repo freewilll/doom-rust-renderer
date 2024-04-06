@@ -4,8 +4,8 @@ use sdl2::render::Canvas;
 use sdl2::video::Window;
 use std::fmt;
 
+use crate::graphics::Palette;
 use crate::map::Vertex;
-use crate::palette::Palette;
 
 #[derive(Clone)]
 pub struct Bitmap {

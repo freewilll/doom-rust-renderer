@@ -12,14 +12,11 @@ mod visplanes;
 
 use std::rc::Rc;
 
-use crate::flats::Flats;
 use crate::game::Player;
 use crate::geometry::Line;
+use crate::graphics::{Flats, Palette, Sprites, Texture, Textures};
 use crate::map::{Map, Node, NodeChild, SubSector, Vertex};
 use crate::map_objects::MapObjects;
-use crate::palette::Palette;
-use crate::sprites::Sprites;
-use crate::textures::{Texture, Textures};
 
 pub use bsp::get_sector_from_vertex;
 use map_objects::draw_map_objects;

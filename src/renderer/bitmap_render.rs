@@ -4,8 +4,8 @@ use std::rc::Rc;
 
 use super::clipped_line::ClippedLine;
 use super::pixels::Pixels;
-use crate::bitmap::Bitmap;
-use crate::palette::Palette;
+
+use crate::graphics::{Bitmap, Palette};
 
 #[derive(PartialEq)]
 pub enum BitmapRenderState {
