@@ -43,6 +43,7 @@ pub struct BitmapRender {
 }
 
 impl BitmapRender {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         state: BitmapRenderState,   // The state
         bitmap: Option<Rc<Bitmap>>, // The texture or picture's bitmap, None if this is a non-rendered portal
@@ -172,6 +173,7 @@ pub fn diminish_color(color: &Color, light_level: i16, distance: i16) -> Color {
 
 // Draw a vertical line of a texture
 // See 5.12.5 Perspective-Correct Texture Mapping in the game engine black book
+#[allow(clippy::too_many_arguments)]
 pub fn render_vertical_bitmap_line(
     pixels: &mut Pixels,
     palette: &Palette,

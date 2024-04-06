@@ -33,6 +33,7 @@ pub struct Renderer<'a> {
 }
 
 impl Renderer<'_> {
+    #[allow(clippy::too_many_arguments)]
     pub fn new<'a>(
         pixels: &'a mut Pixels,
         map: &'a Map,
