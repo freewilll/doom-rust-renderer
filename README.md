@@ -48,7 +48,8 @@ cargo run -r -- --help
 - Moving around with keyboard: arrows, shift, strafe, turbo
 
 # Things missing from the renderer
-- Animated wall textures
+- Animated walls
+- Scrolling walls
 
 # Links
 - [Game Engine Black Book: DOOM](https://archive.org/details/gebbdoome)
