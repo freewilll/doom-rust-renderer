@@ -15,6 +15,8 @@ use super::sdl_line::SdlLine;
 use super::sidedef_visplanes::SidedefVisPlanes;
 use super::visplanes::Visplane;
 
+const DEBUG_DRAW_OUTLINE: bool = false;
+
 // The heart of the renderer. Process all walls & portals. Solid walls are rendered,
 // portals are left to be rendered later with the map objects (things). A list of
 // visplanes are created for the next stage of rendering.
@@ -194,6 +196,7 @@ impl Segs<'_> {
             flags.is_lower_wall || (!flags.is_two_sided_middle_wall && is_full_height_wall),
             flags.is_upper_wall || (!flags.is_two_sided_middle_wall && is_full_height_wall),
             flags.draw_ceiling,
+            DEBUG_DRAW_OUTLINE,
         );
 
         for x in bottom.start.x as i16..bottom.end.x as i16 + 1 {
@@ -247,6 +250,9 @@ impl Segs<'_> {
                                 clipped_top_y.into(),
                                 bottom_y.into(),
                                 top_y.into(),
+                                DEBUG_DRAW_OUTLINE,
+                                DEBUG_DRAW_OUTLINE
+                                    && (x == bottom.start.x as i16 || x == bottom.end.x as i16),
                             );
                         }
                     }

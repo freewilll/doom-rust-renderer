@@ -11,6 +11,8 @@ use crate::game::{Player, SCREEN_HEIGHT, SCREEN_WIDTH};
 use crate::graphics::{Flat, Palette, Texture, FLAT_SIZE};
 use crate::map::Vertex;
 
+const DEBUG_DRAW_OUTLINE: bool = false;
+
 #[derive(Debug, Clone)]
 pub struct Visplane {
     // Describes a floor or ceiling area bounded by vertical left and right lines.
@@ -80,8 +82,6 @@ pub fn draw_visplane(
     sky_texture: Rc<Texture>,
     visplane: &Visplane,
 ) {
-    const DEBUG_DRAW_OUTLINE: bool = false;
-
     if visplane.flat.name.contains("SKY") {
         draw_sky(pixels, palette, player, Rc::clone(&sky_texture), visplane);
         return;

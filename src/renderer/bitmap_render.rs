@@ -40,6 +40,7 @@ pub struct BitmapRender {
     pub extends_to_top: bool,   // Used to clip map objects against solid walls
     pub draw_ceiling: bool,     // Set to false in a special case for sky texture
     pub columns: Vec<BitmapColumn>, // The columns
+    debug_draw_outline: bool,   // Draw debug outline of bitmap
 }
 
 impl BitmapRender {
@@ -58,6 +59,7 @@ impl BitmapRender {
         extends_to_bottom: bool,    // Used to clip things against solid walls
         extends_to_top: bool,       // Used to clip things against solid walls
         draw_ceiling: bool,         // Set to false in a special case for sky texture
+        debug_draw_outline: bool,   // Draw debug outline of bitmap
     ) -> BitmapRender {
         BitmapRender {
             state,
@@ -74,6 +76,7 @@ impl BitmapRender {
             extends_to_top,
             draw_ceiling,
             columns: vec![],
+            debug_draw_outline,
         }
     }
 
@@ -101,7 +104,7 @@ impl BitmapRender {
         }
 
         if let Some(bitmap) = &self.bitmap {
-            for column in &self.columns {
+            for (i, column) in self.columns.iter().enumerate() {
                 render_vertical_bitmap_line(
                     pixels,
                     palette,
@@ -119,6 +122,8 @@ impl BitmapRender {
                     column.clipped_top_y,
                     column.bottom_y,
                     column.top_y,
+                    self.debug_draw_outline,
+                    self.debug_draw_outline && (i == 0 || i == self.columns.len() - 1),
                 );
             }
         }
@@ -191,6 +196,8 @@ pub fn render_vertical_bitmap_line(
     clipped_top_y: i32,         // The y region to draw in screen coordinates
     bottom_y: i32,              // Full vertical line in screen coordinates
     top_y: i32,                 // Full vertical line in screen coordinates
+    debug_draw_outline: bool,   // Draw debug outline of bitmap
+    is_edge: bool,              // For debug drawing the left and right edges
 ) {
     let len = clipped_line.line.length();
 
@@ -226,7 +233,11 @@ pub fn render_vertical_bitmap_line(
 
         if let Some(color_value) = bitmap.pixels[ty as usize][tx as usize] {
             let color = palette.colors[color_value as usize];
-            let diminished_color = diminish_color(&color, light_level, z);
+            let mut diminished_color = diminish_color(&color, light_level, z);
+
+            if is_edge || (debug_draw_outline && (y == clipped_top_y || y == clipped_bottom_y)) {
+                diminished_color = Color::RGB(255, 255, 255);
+            }
 
             pixels.set(x as usize, y as usize, &diminished_color);
         }

@@ -25,6 +25,8 @@ pub fn draw_map_objects(
     map: &Map,
     palette: &Palette,
 ) {
+    const DEBUG_DRAW_OUTLINE: bool = false;
+
     // Loop over all map objects, prepare the bitmaps, transform and do
     // clipping.
     let mut map_object_bitmap_renders: Vec<BitmapRender> = Vec::new();
@@ -206,6 +208,7 @@ pub fn draw_map_objects(
             false,
             false,
             false,
+            DEBUG_DRAW_OUTLINE,
         );
 
         // Loop from the left x to the right x, calculating the y screen coordinates
