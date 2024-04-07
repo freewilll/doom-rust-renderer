@@ -133,35 +133,7 @@ pub fn draw_map_objects(
 
         // Loop over all segs and fill out the seg_clip arrays.
         for seg in &mut *segs {
-            // Ignore segs behind the map object
-
-            // The following logic can be found in R_DrawSprite in r_things.c.
-
-            // Determine the x coordinate of the line closest (min) and furthest (max) from us
-            let min_x = seg
-                .clipped_line
-                .line
-                .start
-                .x
-                .min(seg.clipped_line.line.end.x);
-            let max_x = seg
-                .clipped_line
-                .line
-                .start
-                .x
-                .max(seg.clipped_line.line.end.x);
-
-            // The entire line is behind the thing
-            if min_x > view_port_vertex.x {
-                continue;
-            }
-
-            // The line is either to the left or the right of the thing from our
-            // point of view. If the thing is on the line's right, then the line is
-            // behind it.
-            if max_x > view_port_vertex.x
-                && !view_port_vertex.is_left_of_line(&seg.clipped_line.line)
-            {
+            if seg.is_behind_vertex(&view_port_vertex) {
                 continue;
             }
 
@@ -246,9 +218,19 @@ pub fn draw_map_objects(
 
     // Render the map objects + all two sided segs in between them.
     for map_object_bitmap_render in &mut map_object_bitmap_renders {
+        let view_port_vertex_x = (map_object_bitmap_render.clipped_line.line.start.x
+            + map_object_bitmap_render.clipped_line.line.end.x)
+            / 2.0;
+
+        let view_port_vertex_y = (map_object_bitmap_render.clipped_line.line.start.y
+            + map_object_bitmap_render.clipped_line.line.end.y)
+            / 2.0;
+        // println!("view_port_vertex_x  {:?}", view_port_vertex_x);
+        let view_port_vertex = Vertex::new(view_port_vertex_x, view_port_vertex_y);
+
         // Render any two sided textures behind the map object
         for seg in &mut *segs {
-            if seg > map_object_bitmap_render {
+            if seg.is_behind_vertex(&view_port_vertex) {
                 seg.render(pixels, palette);
             }
         }

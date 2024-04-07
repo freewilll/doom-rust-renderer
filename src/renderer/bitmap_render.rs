@@ -6,6 +6,7 @@ use super::clipped_line::ClippedLine;
 use super::pixels::Pixels;
 
 use crate::graphics::{Bitmap, Palette};
+use crate::map::Vertex;
 
 #[derive(PartialEq)]
 pub enum BitmapRenderState {
@@ -30,8 +31,8 @@ pub struct BitmapRender {
     bitmap: Option<Rc<Bitmap>>, // The texture or picture's bitmap, None if this is a non-rendered portal
     light_level: i16,           // Sector light level
     pub clipped_line: ClippedLine, // The clipped line in viewport coordinates
-    start_x: i32,               // The clipped line x start in screen coordinates
-    end_x: i32,                 // The clipped line x end in screen coordinates
+    pub start_x: i32,           // The clipped line x start in screen coordinates
+    pub end_x: i32,             // The clipped line x end in screen coordinates
     bottom_height: f32,         // The (potentially not-drawn) bottom in viewport coordinates
     top_height: f32,            // The (potentially not-drawn) top in viewport coordinates
     offset_x: i16,              // Texture offset in viewport coordinates
@@ -131,6 +132,36 @@ impl BitmapRender {
         // Note: this differs a bit from Doom which keeps track of which columns
         // are drawn. Here, an entire seg is either drawn or not.
         self.state = BitmapRenderState::DrawnSeg;
+    }
+
+    pub fn is_behind_vertex(&self, vertex: &Vertex) -> bool {
+        // Determine the x coordinate of the line closest (min) and furthest (max) from us
+        let min_x = self
+            .clipped_line
+            .line
+            .start
+            .x
+            .min(self.clipped_line.line.end.x);
+        let max_x = self
+            .clipped_line
+            .line
+            .start
+            .x
+            .max(self.clipped_line.line.end.x);
+
+        // The entire line is behind the thing
+        if min_x > vertex.x {
+            return true;
+        }
+
+        // The line is either to the left or the right of the thing from our
+        // point of view. If the thing is on the line's right, then the line is
+        // behind it.
+        if max_x > vertex.x && !vertex.is_left_of_line(&self.clipped_line.line) {
+            return true;
+        }
+
+        false
     }
 }
 
