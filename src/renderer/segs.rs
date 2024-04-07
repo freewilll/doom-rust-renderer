@@ -468,8 +468,10 @@ impl Segs<'_> {
                 .contains("SKY")
                 && back_sidedef.sector.borrow().ceiling_texture.contains("SKY")
             {
+                let back_sidedef_ceiling_height =
+                    back_sidedef.sector.borrow().ceiling_height as f32;
                 opt_portal_top_height = None;
-                ceiling_height = back_sidedef.sector.borrow().ceiling_height as f32;
+                ceiling_height = back_sidedef_ceiling_height.min(ceiling_height);
                 draw_ceiling = false;
             }
         }
