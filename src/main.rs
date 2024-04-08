@@ -13,7 +13,7 @@ mod renderer;
 mod thinkers;
 mod wad;
 
-use game::Game;
+use game::{Game, OverridePlayer};
 use wad::WadFile;
 
 // Read a file into a u8 vector
@@ -49,6 +49,9 @@ struct Args {
     // Print player position
     #[arg(long, default_value_t = false)]
     print_player_position: bool,
+
+    #[arg(long)]
+    player_position: Option<String>,
 }
 
 pub fn main() {
@@ -57,12 +60,17 @@ pub fn main() {
     let file = read_file(&args.wad);
     let wad_file = Rc::new(WadFile::new(file));
 
+    let override_player: Option<OverridePlayer> = args
+        .player_position
+        .map(|player_position| serde_json::from_str(&player_position).unwrap());
+
     let mut game = Game::new(
         wad_file,
         args.map.as_str(),
         args.turbo,
         args.print_fps,
         args.print_player_position,
+        override_player,
     );
     game.main_loop();
 }

@@ -1,4 +1,5 @@
 use regex::Regex;
+use serde::{Deserialize, Serialize};
 
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -30,7 +31,13 @@ const MAP_BORDER: u32 = 20;
 
 const CLOCK_HZ: u32 = 35;
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize, Serialize)]
+pub struct OverridePlayer {
+    pub position: Vertex,
+    pub angle: f32,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Player {
     pub position: Vertex,
     pub floor_height: f32, // Set to the height of the sector the player is in
@@ -114,6 +121,7 @@ impl Game {
         turbo: i16,
         print_fps: bool,
         print_player_position: bool,
+        override_player: Option<OverridePlayer>,
     ) -> Game {
         let sdl_context = sdl2::init().unwrap();
         let video_subsystem = sdl_context.video().unwrap();
@@ -133,11 +141,19 @@ impl Game {
 
         let map = Map::new(&wad_file, map_name);
 
-        let player1_start = get_thing_by_type(&map.things, ThingTypes::Player1Start);
-        let player = Player {
-            position: Vertex::new(player1_start.x, player1_start.y),
-            angle: player1_start.angle,
-            floor_height: 0.0, // Will be updated later
+        let player = if let Some(override_player) = override_player {
+            Player {
+                position: override_player.position,
+                angle: override_player.angle,
+                floor_height: 0.0, // Will be updated later
+            }
+        } else {
+            let player1_start = get_thing_by_type(&map.things, ThingTypes::Player1Start);
+            Player {
+                position: Vertex::new(player1_start.x, player1_start.y),
+                angle: player1_start.angle,
+                floor_height: 0.0, // Will be updated later
+            }
         };
 
         let palette = Palette::new(&wad_file);
@@ -359,7 +375,12 @@ impl Game {
     // Update the height of the player by looking at ther sector height the player is in.
     fn update_current_player_height(&mut self) {
         if self.print_player_position {
-            println!("{:?}", self.player);
+            let player = OverridePlayer {
+                position: self.player.position.clone(),
+                angle: self.player.angle,
+            };
+            let serialized = serde_json::to_string(&player).unwrap();
+            println!("--player-position '{}'", serialized);
         }
 
         if let Some(sector) = get_sector_from_vertex(&self.map, &self.player.position) {

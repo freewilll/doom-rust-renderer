@@ -8,6 +8,5 @@ clap = { version = "4.5.1", features = ["cargo", "derive"] }
 rand = "0.8.5"
 regex = "1.10.3"
 sdl2 = "0.36.0"
-
-
-
+serde = { version = "1.0.197", features = ["derive"] }
+serde_json = "1.0.115"

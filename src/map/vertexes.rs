@@ -1,10 +1,12 @@
-use crate::geometry::Line;
-use crate::wad::{MapLumpName, WadFile};
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::ops::{Add, Sub};
 use std::rc::Rc;
 
-#[derive(Clone)]
+use crate::geometry::Line;
+use crate::wad::{MapLumpName, WadFile};
+
+#[derive(Clone, Deserialize, Serialize)]
 pub struct Vertex {
     pub x: f32,
     pub y: f32,
