@@ -65,7 +65,11 @@ fn draw_sky(
             let mut tx = (x as f32 * SKY_TEXTURE_WIDTH as f32 / SCREEN_WIDTH as f32) as i16;
             tx = (tx + tx_offset) % SKY_TEXTURE_WIDTH;
 
-            let ty = (y as f32 * SKY_TEXTURE_HEIGHT as f32 / SCREEN_HEIGHT as f32) as i16;
+            let mut ty = (y as f32 * SKY_TEXTURE_HEIGHT as f32 * 2.0 / SCREEN_HEIGHT as f32) as i16;
+            if ty < 0 {
+                ty += SKY_TEXTURE_HEIGHT;
+            }
+            ty %= SKY_TEXTURE_HEIGHT;
 
             if let Some(color_value) = sky_texture.bitmap.pixels[ty as usize][tx as usize] {
                 let color = palette.colors[color_value as usize];
