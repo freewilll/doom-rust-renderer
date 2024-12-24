@@ -26,7 +26,6 @@ fn read_file(filename: &str) -> Vec<u8> {
     result
 }
 
-// Simple program to greet a person
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
